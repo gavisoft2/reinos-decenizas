@@ -1,9 +1,8 @@
-```javascript
 "use strict";
 
 /* =========================================================
    ⚔️ REINOS DE CENIZA
-   GAME.JS v0.7
+   GAME.JS - VERSIÓN LIMPIA
    ========================================================= */
 
 const canvas = document.getElementById("world");
@@ -12,7 +11,7 @@ const ctx = canvas.getContext("2d");
 ctx.imageSmoothingEnabled = false;
 
 /* =========================================================
-   CONFIGURACIÓN DEL MUNDO
+   CONFIGURACIÓN
    ========================================================= */
 
 const WORLD_WIDTH = 5000;
@@ -21,19 +20,12 @@ const TILE = 64;
 
 let screenWidth = window.innerWidth;
 let screenHeight = window.innerHeight;
-
 let dpr = Math.min(window.devicePixelRatio || 1, 2);
 
-let camera = {
+const camera = {
     x: 0,
     y: 0
 };
-
-let lastTime = performance.now();
-
-/* =========================================================
-   RESPAWN
-   ========================================================= */
 
 const respawnPoint = {
     x: WORLD_WIDTH / 2,
@@ -41,7 +33,30 @@ const respawnPoint = {
 };
 
 /* =========================================================
-   RESIZE
+   UTILIDADES
+   ========================================================= */
+
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+}
+
+function random(min, max) {
+    return Math.random() * (max - min) + min;
+}
+
+function randomInt(min, max) {
+    return Math.floor(random(min, max + 1));
+}
+
+function distance(a, b) {
+    const dx = a.x - b.x;
+    const dy = a.y - b.y;
+
+    return Math.sqrt(dx * dx + dy * dy);
+}
+
+/* =========================================================
+   CANVAS
    ========================================================= */
 
 function resizeCanvas() {
@@ -65,31 +80,7 @@ window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
 
 /* =========================================================
-   UTILIDADES
-   ========================================================= */
-
-function clamp(value, min, max) {
-    return Math.max(min, Math.min(max, value));
-}
-
-function distance(a, b) {
-
-    const dx = a.x - b.x;
-    const dy = a.y - b.y;
-
-    return Math.sqrt(dx * dx + dy * dy);
-}
-
-function random(min, max) {
-    return Math.random() * (max - min) + min;
-}
-
-function randomInt(min, max) {
-    return Math.floor(random(min, max + 1));
-}
-
-/* =========================================================
-   PLAYER
+   JUGADOR
    ========================================================= */
 
 const player = {
@@ -104,7 +95,6 @@ const player = {
     level: 1,
 
     xp: 0,
-
     xpNeeded: 100,
 
     hp: 100,
@@ -115,22 +105,20 @@ const player = {
 
     damage: 25,
 
-    attackRange: 90,
+    attackRange: 100,
 
     attackCooldown: 0,
-
     attackDelay: 0.55,
 
     directionX: 0,
     directionY: 1,
 
     dead: false,
-
     respawnTimer: 0
 };
 
 /* =========================================================
-   🛠️ HERRAMIENTAS EQUIPADAS
+   HERRAMIENTAS
    ========================================================= */
 
 const tools = {
@@ -151,18 +139,11 @@ const tools = {
     }
 };
 
-/*
-   Recursos que puede recoger cada herramienta
-*/
-
 const resourceTools = {
 
     tree: "axe",
-
     rock: "pickaxe",
-
     copper: "pickaxe",
-
     iron: "pickaxe"
 };
 
@@ -175,11 +156,8 @@ const inventory = {
     gold: 0,
 
     wood: 0,
-
     stone: 0,
-
     copper: 0,
-
     iron: 0,
 
     fish: 0
@@ -193,7 +171,6 @@ const joystick = document.getElementById("joystick");
 const joystickKnob = document.getElementById("joystickKnob");
 
 let joystickActive = false;
-
 let joystickX = 0;
 let joystickY = 0;
 
@@ -209,17 +186,31 @@ function updateJoystick(clientX, clientY) {
     let dx = clientX - centerX;
     let dy = clientY - centerY;
 
-    const length =
-        Math.sqrt(dx * dx + dy * dy);
+    const length = Math.sqrt(
+        dx * dx +
+        dy * dy
+    );
 
     if (length > joystickRadius) {
 
-        dx = dx / length * joystickRadius;
-        dy = dy / length * joystickRadius;
+        dx =
+            dx /
+            length *
+            joystickRadius;
+
+        dy =
+            dy /
+            length *
+            joystickRadius;
     }
 
-    joystickX = dx / joystickRadius;
-    joystickY = dy / joystickRadius;
+    joystickX =
+        dx /
+        joystickRadius;
+
+    joystickY =
+        dy /
+        joystickRadius;
 
     joystickKnob.style.transform =
         `translate(${dx}px, ${dy}px)`;
@@ -236,72 +227,100 @@ function resetJoystick() {
         "translate(0px, 0px)";
 }
 
-/* Touch */
+/* =========================================================
+   TOUCH JOYSTICK
+   ========================================================= */
 
-joystick.addEventListener("touchstart", e => {
+joystick.addEventListener(
+    "touchstart",
+    function(e) {
 
-    e.preventDefault();
+        e.preventDefault();
 
-    joystickActive = true;
+        joystickActive = true;
 
-    const touch = e.touches[0];
+        const touch = e.touches[0];
 
-    updateJoystick(
-        touch.clientX,
-        touch.clientY
-    );
+        updateJoystick(
+            touch.clientX,
+            touch.clientY
+        );
 
-}, { passive: false });
+    },
+    {
+        passive: false
+    }
+);
 
-joystick.addEventListener("touchmove", e => {
+joystick.addEventListener(
+    "touchmove",
+    function(e) {
 
-    e.preventDefault();
+        e.preventDefault();
 
-    if (!joystickActive) return;
+        if (!joystickActive) return;
 
-    const touch = e.touches[0];
+        const touch = e.touches[0];
 
-    updateJoystick(
-        touch.clientX,
-        touch.clientY
-    );
+        updateJoystick(
+            touch.clientX,
+            touch.clientY
+        );
 
-}, { passive: false });
+    },
+    {
+        passive: false
+    }
+);
 
-joystick.addEventListener("touchend", e => {
+joystick.addEventListener(
+    "touchend",
+    function(e) {
 
-    e.preventDefault();
+        e.preventDefault();
 
-    resetJoystick();
+        resetJoystick();
 
-}, { passive: false });
+    },
+    {
+        passive: false
+    }
+);
 
 joystick.addEventListener(
     "touchcancel",
     resetJoystick
 );
 
-/* Mouse */
+/* =========================================================
+   MOUSE JOYSTICK
+   ========================================================= */
 
-joystick.addEventListener("mousedown", e => {
+joystick.addEventListener(
+    "mousedown",
+    function(e) {
 
-    joystickActive = true;
+        joystickActive = true;
 
-    updateJoystick(
-        e.clientX,
-        e.clientY
-    );
-});
+        updateJoystick(
+            e.clientX,
+            e.clientY
+        );
+    }
+);
 
-window.addEventListener("mousemove", e => {
+window.addEventListener(
+    "mousemove",
+    function(e) {
 
-    if (!joystickActive) return;
+        if (!joystickActive) return;
 
-    updateJoystick(
-        e.clientX,
-        e.clientY
-    );
-});
+        updateJoystick(
+            e.clientX,
+            e.clientY
+        );
+    }
+);
 
 window.addEventListener(
     "mouseup",
@@ -314,25 +333,31 @@ window.addEventListener(
 
 const keys = {};
 
-window.addEventListener("keydown", e => {
+window.addEventListener(
+    "keydown",
+    function(e) {
 
-    keys[e.key.toLowerCase()] = true;
+        keys[e.key.toLowerCase()] = true;
 
-    if (e.key === " ") {
+        if (e.key === " ") {
 
-        e.preventDefault();
+            e.preventDefault();
 
-        attack();
+            attack();
+        }
     }
-});
+);
 
-window.addEventListener("keyup", e => {
+window.addEventListener(
+    "keyup",
+    function(e) {
 
-    keys[e.key.toLowerCase()] = false;
-});
+        keys[e.key.toLowerCase()] = false;
+    }
+);
 
 /* =========================================================
-   MAPA
+   TERRENO
    ========================================================= */
 
 const terrain = [];
@@ -351,45 +376,60 @@ function generateTerrain() {
     terrain.length = 0;
 
     const columns =
-        Math.floor(WORLD_WIDTH / TILE);
+        Math.ceil(WORLD_WIDTH / TILE);
 
     const rows =
-        Math.floor(WORLD_HEIGHT / TILE);
+        Math.ceil(WORLD_HEIGHT / TILE);
 
     for (let y = 0; y < rows; y++) {
 
         for (let x = 0; x < columns; x++) {
 
-            let type = TILE_TYPES.GRASS;
+            let type =
+                TILE_TYPES.GRASS;
 
-            const nx = x / columns;
-            const ny = y / rows;
+            const nx =
+                x / columns;
 
-            if (
+            const ny =
+                y / rows;
+
+            const noise =
                 Math.sin(nx * 12) +
-                Math.cos(ny * 9) < -1.65
-            ) {
+                Math.cos(ny * 9);
 
-                type = TILE_TYPES.WATER;
+            if (noise < -1.65) {
+
+                type =
+                    TILE_TYPES.WATER;
 
             } else {
 
-                const r = Math.random();
+                const r =
+                    Math.random();
 
                 if (r < 0.08) {
-                    type = TILE_TYPES.FOREST;
-                }
-                else if (r < 0.12) {
-                    type = TILE_TYPES.ROCK;
-                }
-                else if (r < 0.16) {
-                    type = TILE_TYPES.SAND;
+
+                    type =
+                        TILE_TYPES.FOREST;
+
+                } else if (r < 0.12) {
+
+                    type =
+                        TILE_TYPES.ROCK;
+
+                } else if (r < 0.16) {
+
+                    type =
+                        TILE_TYPES.SAND;
                 }
             }
 
             terrain.push({
+
                 x: x * TILE,
                 y: y * TILE,
+
                 type
             });
         }
@@ -407,7 +447,9 @@ const resources = [];
 function createResource(type, x, y) {
 
     const maxHp =
-        type === "tree" ? 3 : 2;
+        type === "tree"
+            ? 3
+            : 2;
 
     resources.push({
 
@@ -419,7 +461,6 @@ function createResource(type, x, y) {
         radius: 20,
 
         hp: maxHp,
-
         maxHp,
 
         respawnTimer: 0
@@ -433,31 +474,35 @@ function generateResources() {
     for (let i = 0; i < 260; i++) {
 
         const x =
-            random(100, WORLD_WIDTH - 100);
+            random(
+                100,
+                WORLD_WIDTH - 100
+            );
 
         const y =
-            random(100, WORLD_HEIGHT - 100);
+            random(
+                100,
+                WORLD_HEIGHT - 100
+            );
 
-        const typeRoll = Math.random();
+        const roll =
+            Math.random();
 
         let type;
 
-        if (typeRoll < 0.45) {
+        if (roll < 0.45) {
 
             type = "tree";
 
-        }
-        else if (typeRoll < 0.70) {
+        } else if (roll < 0.70) {
 
             type = "rock";
 
-        }
-        else if (typeRoll < 0.85) {
+        } else if (roll < 0.85) {
 
             type = "copper";
 
-        }
-        else {
+        } else {
 
             type = "iron";
         }
@@ -534,22 +579,35 @@ const enemyTypes = {
 
 function spawnEnemy(type) {
 
-    const data = enemyTypes[type];
+    const data =
+        enemyTypes[type];
 
     let x;
     let y;
 
+    let attempts = 0;
+
     do {
 
         x =
-            random(200, WORLD_WIDTH - 200);
+            random(
+                200,
+                WORLD_WIDTH - 200
+            );
 
         y =
-            random(200, WORLD_HEIGHT - 200);
+            random(
+                200,
+                WORLD_HEIGHT - 200
+            );
+
+        attempts++;
+
+        if (attempts > 100) break;
 
     } while (
-        Math.abs(x - player.x) < 400 &&
-        Math.abs(y - player.y) < 400
+        Math.abs(x - player.x) < 500 &&
+        Math.abs(y - player.y) < 500
     );
 
     enemies.push({
@@ -564,7 +622,6 @@ function spawnEnemy(type) {
         radius: data.radius,
 
         hp: data.hp,
-
         maxHp: data.hp,
 
         damage: data.damage,
@@ -575,7 +632,8 @@ function spawnEnemy(type) {
 
         gold: data.gold,
 
-        attackCooldown: random(0, 1),
+        attackCooldown:
+            random(0, 1),
 
         hitFlash: 0,
 
@@ -589,19 +647,18 @@ function generateEnemies() {
 
     for (let i = 0; i < 25; i++) {
 
-        const r = Math.random();
+        const r =
+            Math.random();
 
         if (r < 0.45) {
 
             spawnEnemy("wolf");
 
-        }
-        else if (r < 0.75) {
+        } else if (r < 0.75) {
 
             spawnEnemy("boar");
 
-        }
-        else {
+        } else {
 
             spawnEnemy("goblin");
         }
@@ -628,7 +685,6 @@ function floatingText(
         text,
 
         x,
-
         y,
 
         life: 1,
@@ -646,7 +702,11 @@ let messageTimer = 0;
 function showMessage(text) {
 
     const element =
-        document.getElementById("message");
+        document.getElementById(
+            "message"
+        );
+
+    if (!element) return;
 
     element.textContent = text;
 
@@ -656,7 +716,7 @@ function showMessage(text) {
 }
 
 /* =========================================================
-   ⚔️ ATAQUE
+   ATAQUE
    ========================================================= */
 
 function attack() {
@@ -670,14 +730,18 @@ function attack() {
 
     let target = null;
 
-    let nearest = Infinity;
+    let nearest =
+        player.attackRange;
 
     for (const enemy of enemies) {
 
         if (enemy.dead) continue;
 
         const d =
-            distance(player, enemy);
+            distance(
+                player,
+                enemy
+            );
 
         if (
             d <= player.attackRange &&
@@ -704,13 +768,18 @@ function attack() {
 
     const damage =
         randomInt(
-            Math.floor(player.damage * 0.8),
-            Math.floor(player.damage * 1.2)
+            Math.floor(
+                player.damage * 0.8
+            ),
+            Math.floor(
+                player.damage * 1.2
+            )
         );
 
     target.hp -= damage;
 
-    target.hitFlash = 0.12;
+    target.hitFlash =
+        0.15;
 
     floatingText(
         "-" + damage,
@@ -730,9 +799,12 @@ function attack() {
             "#64b5f6"
         );
 
-        gainXP(target.xp);
+        gainXP(
+            target.xp
+        );
 
-        inventory.gold += target.gold;
+        inventory.gold +=
+            target.gold;
 
         showMessage(
             `${target.name} derrotado +${target.gold} oro`
@@ -743,37 +815,43 @@ function attack() {
 }
 
 /* =========================================================
-   BOTÓN DE ATAQUE
+   BOTÓN ATAQUE
    ========================================================= */
 
-document
-    .getElementById("attackButton")
-    .addEventListener(
+const attackButton =
+    document.getElementById(
+        "attackButton"
+    );
+
+if (attackButton) {
+
+    attackButton.addEventListener(
         "touchstart",
-        e => {
+        function(e) {
 
             e.preventDefault();
 
             attack();
 
         },
-        { passive: false }
+        {
+            passive: false
+        }
     );
 
-document
-    .getElementById("attackButton")
-    .addEventListener(
+    attackButton.addEventListener(
         "mousedown",
-        e => {
+        function(e) {
 
             e.preventDefault();
 
             attack();
         }
     );
+}
 
 /* =========================================================
-   ⭐ XP
+   EXPERIENCIA
    ========================================================= */
 
 function gainXP(amount) {
@@ -781,7 +859,8 @@ function gainXP(amount) {
     player.xp += amount;
 
     while (
-        player.xp >= player.xpNeeded
+        player.xp >=
+        player.xpNeeded
     ) {
 
         player.xp -=
@@ -831,20 +910,24 @@ function levelUp() {
 }
 
 /* =========================================================
-   🕹️ MOVIMIENTO
+   MOVIMIENTO
    ========================================================= */
 
 function updateMovement(dt) {
 
     if (player.dead) return;
 
-    let moveX = joystickX;
-    let moveY = joystickY;
+    let moveX =
+        joystickX;
+
+    let moveY =
+        joystickY;
 
     if (
         keys["w"] ||
         keys["arrowup"]
     ) {
+
         moveY -= 1;
     }
 
@@ -852,6 +935,7 @@ function updateMovement(dt) {
         keys["s"] ||
         keys["arrowdown"]
     ) {
+
         moveY += 1;
     }
 
@@ -859,6 +943,7 @@ function updateMovement(dt) {
         keys["a"] ||
         keys["arrowleft"]
     ) {
+
         moveX -= 1;
     }
 
@@ -866,6 +951,7 @@ function updateMovement(dt) {
         keys["d"] ||
         keys["arrowright"]
     ) {
+
         moveX += 1;
     }
 
@@ -913,7 +999,7 @@ function updateMovement(dt) {
 }
 
 /* =========================================================
-   👹 ENEMIGOS
+   ENEMIGOS
    ========================================================= */
 
 function updateEnemies(dt) {
@@ -929,11 +1015,15 @@ function updateEnemies(dt) {
 
         enemy.attackCooldown -= dt;
 
+        if (player.dead) continue;
+
         const dx =
-            player.x - enemy.x;
+            player.x -
+            enemy.x;
 
         const dy =
-            player.y - enemy.y;
+            player.y -
+            enemy.y;
 
         const d =
             Math.sqrt(
@@ -974,7 +1064,8 @@ function updateEnemies(dt) {
                         )
                     );
 
-                player.hp -= damage;
+                player.hp -=
+                    damage;
 
                 floatingText(
                     "-" + damage,
@@ -983,7 +1074,9 @@ function updateEnemies(dt) {
                     "#ff4444"
                 );
 
-                if (player.hp <= 0) {
+                if (
+                    player.hp <= 0
+                ) {
 
                     die();
                 }
@@ -1004,14 +1097,20 @@ function updateEnemies(dt) {
     if (deadCount > 10) {
 
         for (
-            let i = enemies.length - 1;
+            let i =
+                enemies.length - 1;
             i >= 0;
             i--
         ) {
 
-            if (enemies[i].dead) {
+            if (
+                enemies[i].dead
+            ) {
 
-                enemies.splice(i, 1);
+                enemies.splice(
+                    i,
+                    1
+                );
             }
         }
     }
@@ -1027,13 +1126,11 @@ function updateEnemies(dt) {
 
             spawnEnemy("wolf");
 
-        }
-        else if (r < 0.75) {
+        } else if (r < 0.75) {
 
             spawnEnemy("boar");
 
-        }
-        else {
+        } else {
 
             spawnEnemy("goblin");
         }
@@ -1041,7 +1138,7 @@ function updateEnemies(dt) {
 }
 
 /* =========================================================
-   💀 MUERTE
+   MUERTE
    ========================================================= */
 
 function die() {
@@ -1056,23 +1153,13 @@ function die() {
 
     player.respawnTimer = 3;
 
-    /*
-       Guardamos inmediatamente una versión segura.
-       Nunca se guarda el personaje muerto.
-    */
-
     showMessage(
-        "💀 Has muerto... revivirás en 3 segundos"
+        "💀 Has muerto... revives en 3 segundos"
     );
-
-    /*
-       No guardamos hp 0.
-       Esto evita que una recarga deje al jugador muerto.
-    */
 }
 
 /* =========================================================
-   ✨ RESPAWN
+   RESPAWN
    ========================================================= */
 
 function updateRespawn(dt) {
@@ -1118,7 +1205,7 @@ function respawnPlayer() {
 }
 
 /* =========================================================
-   🪓⛏️ RECOLECCIÓN
+   RECOLECCIÓN
    ========================================================= */
 
 function gatherResource() {
@@ -1141,7 +1228,9 @@ function gatherResource() {
                 resource
             );
 
-        if (d < nearest) {
+        if (
+            d <= nearest
+        ) {
 
             nearest = d;
 
@@ -1151,46 +1240,30 @@ function gatherResource() {
 
     if (!target) {
 
-        floatingText(
-            "Acércate a un recurso",
-            player.x,
-            player.y - 40,
-            "#ffff00"
+        showMessage(
+            "No hay recursos cerca"
         );
 
         return;
     }
-
-    /*
-       Buscar la herramienta necesaria
-    */
 
     const requiredTool =
         resourceTools[
             target.type
         ];
 
-    /*
-       Si el recurso necesita herramienta
-       y no está equipada, no se puede recoger.
-    */
-
     if (
-        requiredTool &&
-        !tools[requiredTool].equipped
+        !requiredTool ||
+        !tools[
+            requiredTool
+        ].equipped
     ) {
 
-        floatingText(
-            "Necesitas " +
-            tools[requiredTool].name,
-            target.x,
-            target.y - 35,
-            "#ffcc00"
-        );
-
         showMessage(
-            "🛠️ Necesitas equipar " +
-            tools[requiredTool].name
+            "❌ Necesitas: " +
+            tools[
+                requiredTool
+            ].name
         );
 
         return;
@@ -1198,75 +1271,126 @@ function gatherResource() {
 
     target.hp--;
 
-    let text = "";
+    let amount = 1;
 
-    switch (target.type) {
-
-        case "tree":
-
-            inventory.wood++;
-
-            text =
-                "+1 🌲 Madera";
-
-            break;
-
-        case "rock":
-
-            inventory.stone++;
-
-            text =
-                "+1 🪨 Piedra";
-
-            break;
-
-        case "copper":
-
-            inventory.copper++;
-
-            text =
-                "+1 🔩 Cobre";
-
-            break;
-
-        case "iron":
-
-            inventory.iron++;
-
-            text =
-                "+1 ⚙️ Hierro";
-
-            break;
-    }
-
-    floatingText(
-        text,
-        target.x,
-        target.y - 30,
-        "#fff"
-    );
-
-    /*
-       Recurso agotado
-    */
-
-    if (target.hp <= 0) {
-
-        target.hp = 0;
+    if (
+        target.hp <= 0
+    ) {
 
         target.respawnTimer =
-            10;
+            random(
+                20,
+                40
+            );
+
+        if (
+            target.type ===
+            "tree"
+        ) {
+
+            amount =
+                randomInt(2, 5);
+
+            inventory.wood +=
+                amount;
+
+            showMessage(
+                "🌲 +" +
+                amount +
+                " madera"
+            );
+
+        } else if (
+            target.type ===
+            "rock"
+        ) {
+
+            amount =
+                randomInt(2, 4);
+
+            inventory.stone +=
+                amount;
+
+            showMessage(
+                "🪨 +" +
+                amount +
+                " piedra"
+            );
+
+        } else if (
+            target.type ===
+            "copper"
+        ) {
+
+            amount =
+                randomInt(1, 3);
+
+            inventory.copper +=
+                amount;
+
+            showMessage(
+                "🟠 +" +
+                amount +
+                " cobre"
+            );
+
+        } else if (
+            target.type ===
+            "iron"
+        ) {
+
+            amount =
+                randomInt(1, 3);
+
+            inventory.iron +=
+                amount;
+
+            showMessage(
+                "⚙️ +" +
+                amount +
+                " hierro"
+            );
+        }
+
+        saveGame();
+    } else {
 
         showMessage(
-            "Recurso agotado. Volverá en 10 segundos."
+            "⛏️ Golpe al recurso"
         );
     }
-
-    saveGame();
 }
 
 /* =========================================================
-   🔄 REGENERACIÓN DE RECURSOS
+   DOBLE TOQUE PARA RECOLECTAR
+   ========================================================= */
+
+let lastTap = 0;
+
+canvas.addEventListener(
+    "touchend",
+    function(e) {
+
+        const now =
+            Date.now();
+
+        if (
+            now - lastTap <
+            350
+        ) {
+
+            gatherResource();
+        }
+
+        lastTap = now;
+    },
+    {
+        passive: true
+    }
+);
+
+/* =========================================================
+   RECURSOS: RESPAWN
    ========================================================= */
 
 function updateResources(dt) {
@@ -1274,774 +1398,244 @@ function updateResources(dt) {
     for (const resource of resources) {
 
         if (
-            resource.hp > 0
-        ) continue;
-
-        resource.respawnTimer -= dt;
-
-        if (
-            resource.respawnTimer <= 0
+            resource.hp <= 0
         ) {
 
-            resource.hp =
-                resource.maxHp;
-
-            resource.respawnTimer =
-                0;
-        }
-    }
-}
-
-/* =========================================================
-   DOBLE TOQUE PARA RECOGER
-   ========================================================= */
-
-canvas.addEventListener(
-    "dblclick",
-    gatherResource
-);
-
-let lastTap = 0;
-
-canvas.addEventListener(
-    "touchend",
-    e => {
-
-        const now =
-            Date.now();
-
-        if (
-            now - lastTap < 300
-        ) {
-
-            gatherResource();
-        }
-
-        lastTap = now;
-    }
-);
-
-/* =========================================================
-   📷 CÁMARA
-   ========================================================= */
-
-function updateCamera() {
-
-    camera.x =
-        player.x -
-        screenWidth / 2;
-
-    camera.y =
-        player.y -
-        screenHeight / 2;
-
-    camera.x =
-        clamp(
-            camera.x,
-            0,
-            WORLD_WIDTH - screenWidth
-        );
-
-    camera.y =
-        clamp(
-            camera.y,
-            0,
-            WORLD_HEIGHT - screenHeight
-        );
-}
-
-/* =========================================================
-   🌎 TERRENO
-   ========================================================= */
-
-function drawTerrain() {
-
-    const startX =
-        Math.floor(
-            camera.x / TILE
-        ) * TILE;
-
-    const startY =
-        Math.floor(
-            camera.y / TILE
-        ) * TILE;
-
-    const endX =
-        camera.x +
-        screenWidth +
-        TILE;
-
-    const endY =
-        camera.y +
-        screenHeight +
-        TILE;
-
-    const columns =
-        Math.floor(
-            WORLD_WIDTH / TILE
-        );
-
-    for (
-        let y = startY;
-        y <= endY;
-        y += TILE
-    ) {
-
-        for (
-            let x = startX;
-            x <= endX;
-            x += TILE
-        ) {
+            resource.respawnTimer -= dt;
 
             if (
-                x < 0 ||
-                y < 0 ||
-                x >= WORLD_WIDTH ||
-                y >= WORLD_HEIGHT
-            ) continue;
+                resource.respawnTimer <= 0
+            ) {
 
-            const index =
-                Math.floor(y / TILE) *
-                columns +
-                Math.floor(x / TILE);
+                resource.hp =
+                    resource.maxHp;
+            }
+        }
+    }
+}
 
-            const tile =
-                terrain[index];
+/* =========================================================
+   GUARDADO
+   ========================================================= */
 
-            if (!tile) continue;
+function saveGame() {
 
-            const sx =
-                x - camera.x;
+    if (
+        player.dead ||
+        player.hp <= 0
+    ) {
 
-            const sy =
-                y - camera.y;
+        return;
+    }
 
-            switch (tile.type) {
+    const save = {
 
-                case TILE_TYPES.GRASS:
+        player: {
 
-                    ctx.fillStyle =
-                        "#3d6b3d";
+            x: player.x,
+            y: player.y,
 
-                    break;
+            level: player.level,
 
-                case TILE_TYPES.WATER:
+            xp: player.xp,
+            xpNeeded: player.xpNeeded,
 
-                    ctx.fillStyle =
-                        "#286080";
+            hp: player.hp,
+            maxHp: player.maxHp,
 
-                    break;
+            mana: player.mana,
+            maxMana: player.maxMana,
 
-                case TILE_TYPES.SAND:
+            damage: player.damage
+        },
 
-                    ctx.fillStyle =
-                        "#b9a45c";
+        inventory: {
+            ...inventory
+        },
 
-                    break;
+        tools: {
 
-                case TILE_TYPES.FOREST:
+            axe:
+                tools.axe.equipped,
 
-                    ctx.fillStyle =
-                        "#315b35";
+            pickaxe:
+                tools.pickaxe.equipped,
 
-                    break;
+            fishingRod:
+                tools.fishingRod.equipped
+        }
+    };
 
-                case TILE_TYPES.ROCK:
+    try {
 
-                    ctx.fillStyle =
-                        "#555";
+        localStorage.setItem(
+            "reinosDeCenizaSave",
+            JSON.stringify(save)
+        );
 
-                    break;
+    } catch (error) {
+
+        console.warn(
+            "No se pudo guardar:",
+            error
+        );
+    }
+}
+
+/* =========================================================
+   CARGAR PARTIDA
+   ========================================================= */
+
+function loadGame() {
+
+    try {
+
+        const raw =
+            localStorage.getItem(
+                "reinosDeCenizaSave"
+            );
+
+        if (!raw) return;
+
+        const save =
+            JSON.parse(raw);
+
+        if (save.player) {
+
+            player.x =
+                Number.isFinite(
+                    save.player.x
+                )
+                    ? save.player.x
+                    : respawnPoint.x;
+
+            player.y =
+                Number.isFinite(
+                    save.player.y
+                )
+                    ? save.player.y
+                    : respawnPoint.y;
+
+            player.level =
+                save.player.level || 1;
+
+            player.xp =
+                save.player.xp || 0;
+
+            player.xpNeeded =
+                save.player.xpNeeded || 100;
+
+            player.maxHp =
+                save.player.maxHp || 100;
+
+            player.maxMana =
+                save.player.maxMana || 50;
+
+            player.damage =
+                save.player.damage || 25;
+
+            /*
+             * Si una versión anterior
+             * guardó al jugador muerto,
+             * lo reparamos automáticamente.
+             */
+
+            if (
+                !save.player.hp ||
+                save.player.hp <= 0
+            ) {
+
+                player.hp =
+                    player.maxHp;
+
+                player.mana =
+                    player.maxMana;
+
+                player.x =
+                    respawnPoint.x;
+
+                player.y =
+                    respawnPoint.y;
+
+            } else {
+
+                player.hp =
+                    clamp(
+                        save.player.hp,
+                        1,
+                        player.maxHp
+                    );
+
+                player.mana =
+                    clamp(
+                        save.player.mana || 0,
+                        0,
+                        player.maxMana
+                    );
+            }
+        }
+
+        if (save.inventory) {
+
+            inventory.gold =
+                save.inventory.gold || 0;
+
+            inventory.wood =
+                save.inventory.wood || 0;
+
+            inventory.stone =
+                save.inventory.stone || 0;
+
+            inventory.copper =
+                save.inventory.copper || 0;
+
+            inventory.iron =
+                save.inventory.iron || 0;
+
+            inventory.fish =
+                save.inventory.fish || 0;
+        }
+
+        if (save.tools) {
+
+            if (
+                typeof save.tools.axe ===
+                "boolean"
+            ) {
+
+                tools.axe.equipped =
+                    save.tools.axe;
             }
 
-            ctx.fillRect(
-                sx,
-                sy,
-                TILE + 1,
-                TILE + 1
-            );
-        }
-    }
-}
+            if (
+                typeof save.tools.pickaxe ===
+                "boolean"
+            ) {
 
-/* =========================================================
-   🌲 RECURSOS
-   ========================================================= */
+                tools.pickaxe.equipped =
+                    save.tools.pickaxe;
+            }
 
-function drawResources() {
+            if (
+                typeof save.tools.fishingRod ===
+                "boolean"
+            ) {
 
-    for (const resource of resources) {
-
-        if (
-            resource.hp <= 0
-        ) continue;
-
-        const x =
-            resource.x -
-            camera.x;
-
-        const y =
-            resource.y -
-            camera.y;
-
-        if (
-            x < -50 ||
-            y < -50 ||
-            x > screenWidth + 50 ||
-            y > screenHeight + 50
-        ) continue;
-
-        if (
-            resource.type === "tree"
-        ) {
-
-            ctx.fillStyle =
-                "#68452a";
-
-            ctx.fillRect(
-                x - 7,
-                y,
-                14,
-                30
-            );
-
-            ctx.fillStyle =
-                "#174d28";
-
-            ctx.beginPath();
-
-            ctx.arc(
-                x,
-                y - 10,
-                27,
-                0,
-                Math.PI * 2
-            );
-
-            ctx.fill();
-
-        }
-        else if (
-            resource.type === "rock"
-        ) {
-
-            ctx.fillStyle =
-                "#888";
-
-            ctx.beginPath();
-
-            ctx.moveTo(
-                x - 20,
-                y + 12
-            );
-
-            ctx.lineTo(
-                x - 12,
-                y - 14
-            );
-
-            ctx.lineTo(
-                x + 12,
-                y - 20
-            );
-
-            ctx.lineTo(
-                x + 23,
-                y + 8
-            );
-
-            ctx.lineTo(
-                x + 8,
-                y + 20
-            );
-
-            ctx.closePath();
-
-            ctx.fill();
-
-        }
-        else if (
-            resource.type === "copper"
-        ) {
-
-            ctx.fillStyle =
-                "#b86f3d";
-
-            ctx.beginPath();
-
-            ctx.arc(
-                x,
-                y,
-                18,
-                0,
-                Math.PI * 2
-            );
-
-            ctx.fill();
-
-            ctx.fillStyle =
-                "#e6a06a";
-
-            ctx.beginPath();
-
-            ctx.arc(
-                x - 5,
-                y - 5,
-                5,
-                0,
-                Math.PI * 2
-            );
-
-            ctx.fill();
-
-        }
-        else if (
-            resource.type === "iron"
-        ) {
-
-            ctx.fillStyle =
-                "#555";
-
-            ctx.beginPath();
-
-            ctx.arc(
-                x,
-                y,
-                19,
-                0,
-                Math.PI * 2
-            );
-
-            ctx.fill();
-
-            ctx.fillStyle =
-                "#bbb";
-
-            ctx.beginPath();
-
-            ctx.arc(
-                x - 6,
-                y - 5,
-                5,
-                0,
-                Math.PI * 2
-            );
-
-            ctx.fill();
-        }
-    }
-}
-
-/* =========================================================
-   👹 DIBUJAR ENEMIGOS
-   ========================================================= */
-
-function drawEnemies() {
-
-    for (const enemy of enemies) {
-
-        if (enemy.dead) continue;
-
-        const x =
-            enemy.x -
-            camera.x;
-
-        const y =
-            enemy.y -
-            camera.y;
-
-        if (
-            x < -60 ||
-            y < -60 ||
-            x > screenWidth + 60 ||
-            y > screenHeight + 60
-        ) continue;
-
-        ctx.fillStyle =
-            "rgba(0,0,0,.3)";
-
-        ctx.beginPath();
-
-        ctx.ellipse(
-            x,
-            y + 20,
-            enemy.radius,
-            8,
-            0,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.fill();
-
-        if (
-            enemy.hitFlash > 0
-        ) {
-
-            ctx.fillStyle =
-                "#fff";
-
-        }
-        else if (
-            enemy.type === "wolf"
-        ) {
-
-            ctx.fillStyle =
-                "#777";
-
-        }
-        else if (
-            enemy.type === "boar"
-        ) {
-
-            ctx.fillStyle =
-                "#70452c";
-
-        }
-        else {
-
-            ctx.fillStyle =
-                "#529447";
+                tools.fishingRod.equipped =
+                    save.tools.fishingRod;
+            }
         }
 
-        ctx.beginPath();
+        player.dead = false;
+        player.respawnTimer = 0;
 
-        ctx.arc(
-            x,
-            y,
-            enemy.radius,
-            0,
-            Math.PI * 2
-        );
+    } catch (error) {
 
-        ctx.fill();
-
-        ctx.fillStyle =
-            "#111";
-
-        ctx.beginPath();
-
-        ctx.arc(
-            x - 7,
-            y - 5,
-            3,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.arc(
-            x + 7,
-            y - 5,
-            3,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.fill();
-
-        const barWidth = 45;
-
-        const hpPercent =
-            enemy.hp /
-            enemy.maxHp;
-
-        ctx.fillStyle =
-            "#222";
-
-        ctx.fillRect(
-            x - barWidth / 2,
-            y - enemy.radius - 12,
-            barWidth,
-            5
-        );
-
-        ctx.fillStyle =
-            "#e53935";
-
-        ctx.fillRect(
-            x - barWidth / 2,
-            y - enemy.radius - 12,
-            barWidth * hpPercent,
-            5
-        );
-
-        ctx.font =
-            "11px Arial";
-
-        ctx.textAlign =
-            "center";
-
-        ctx.fillStyle =
-            "#fff";
-
-        ctx.fillText(
-            enemy.name,
-            x,
-            y - enemy.radius - 17
+        console.warn(
+            "Partida dañada. Se iniciará una nueva.",
+            error
         );
     }
-}
-
-/* =========================================================
-   👤 DIBUJAR PLAYER
-   ========================================================= */
-
-function drawPlayer() {
-
-    const x =
-        player.x -
-        camera.x;
-
-    const y =
-        player.y -
-        camera.y;
-
-    ctx.fillStyle =
-        "rgba(0,0,0,.35)";
-
-    ctx.beginPath();
-
-    ctx.ellipse(
-        x,
-        y + 20,
-        24,
-        9,
-        0,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fill();
-
-    if (player.dead) {
-
-        ctx.globalAlpha =
-            0.45;
-    }
-
-    ctx.fillStyle =
-        "#263238";
-
-    ctx.beginPath();
-
-    ctx.arc(
-        x,
-        y + 7,
-        23,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fill();
-
-    ctx.fillStyle =
-        "#795548";
-
-    ctx.fillRect(
-        x - 14,
-        y - 8,
-        28,
-        30
-    );
-
-    ctx.fillStyle =
-        "#d6a77a";
-
-    ctx.beginPath();
-
-    ctx.arc(
-        x,
-        y - 16,
-        15,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fill();
-
-    ctx.fillStyle =
-        "#37474f";
-
-    ctx.beginPath();
-
-    ctx.arc(
-        x,
-        y - 19,
-        16,
-        Math.PI,
-        0
-    );
-
-    ctx.fill();
-
-    ctx.fillStyle =
-        "#111";
-
-    ctx.beginPath();
-
-    ctx.arc(
-        x - 5,
-        y - 16,
-        2,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.arc(
-        x + 5,
-        y - 16,
-        2,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fill();
-
-    /* espada */
-
-    ctx.save();
-
-    ctx.translate(
-        x,
-        y
-    );
-
-    const angle =
-        Math.atan2(
-            player.directionY,
-            player.directionX
-        );
-
-    ctx.rotate(angle);
-
-    ctx.fillStyle =
-        "#ddd";
-
-    ctx.fillRect(
-        15,
-        -3,
-        32,
-        6
-    );
-
-    ctx.fillStyle =
-        "#795548";
-
-    ctx.fillRect(
-        8,
-        -3,
-        10,
-        6
-    );
-
-    ctx.restore();
-
-    ctx.globalAlpha = 1;
-
-    ctx.font =
-        "bold 12px Arial";
-
-    ctx.textAlign =
-        "center";
-
-    ctx.fillStyle =
-        "#fff";
-
-    ctx.fillText(
-        "Aventurero",
-        x,
-        y - 43
-    );
-
-    ctx.fillStyle =
-        "#222";
-
-    ctx.fillRect(
-        x - 25,
-        y - 38,
-        50,
-        5
-    );
-
-    ctx.fillStyle =
-        "#e53935";
-
-    ctx.fillRect(
-        x - 25,
-        y - 38,
-        50 *
-        clamp(
-            player.hp /
-            player.maxHp,
-            0,
-            1
-        ),
-        5
-    );
-}
-
-/* =========================================================
-   💬 TEXTOS
-   ========================================================= */
-
-function updateFloatingTexts(dt) {
-
-    for (
-        let i = floatingTexts.length - 1;
-        i >= 0;
-        i--
-    ) {
-
-        const effect =
-            floatingTexts[i];
-
-        effect.life -= dt;
-
-        effect.y -=
-            30 * dt;
-
-        if (
-            effect.life <= 0
-        ) {
-
-            floatingTexts.splice(
-                i,
-                1
-            );
-        }
-    }
-}
-
-function drawFloatingTexts() {
-
-    ctx.textAlign =
-        "center";
-
-    ctx.font =
-        "bold 14px Arial";
-
-    for (
-        const effect of floatingTexts
-    ) {
-
-        ctx.globalAlpha =
-            clamp(
-                effect.life,
-                0,
-                1
-            );
-
-        ctx.fillStyle =
-            effect.color;
-
-        ctx.fillText(
-            effect.text,
-            effect.x - camera.x,
-            effect.y - camera.y
-        );
-    }
-
-    ctx.globalAlpha = 1;
 }
 
 /* =========================================================
@@ -2065,252 +1659,111 @@ function updateHUD() {
             "hudText"
         );
 
-    hpBar.style.width =
-        `${clamp(
-            player.hp /
-            player.maxHp *
-            100,
-            0,
-            100
-        )}%`;
-
-    xpBar.style.width =
-        `${clamp(
-            player.xp /
-            player.xpNeeded *
-            100,
-            0,
-            100
-        )}%`;
-
-    hudText.textContent =
-        `Nivel ${player.level} · ❤️ ${Math.ceil(player.hp)}/${player.maxHp} · ⭐ ${player.xp}/${player.xpNeeded}`;
-
-    document.getElementById(
-        "gold"
-    ).textContent =
-        inventory.gold;
-
-    document.getElementById(
-        "wood"
-    ).textContent =
-        inventory.wood;
-
-    document.getElementById(
-        "stone"
-    ).textContent =
-        inventory.stone;
-
-    document.getElementById(
-        "copper"
-    ).textContent =
-        inventory.copper;
-
-    document.getElementById(
-        "iron"
-    ).textContent =
-        inventory.iron;
-
-    document.getElementById(
-        "fish"
-    ).textContent =
-        inventory.fish;
-}
-
-/* =========================================================
-   💾 GUARDADO SEGURO
-   ========================================================= */
-
-function saveGame() {
-
-    /*
-       MUY IMPORTANTE:
-
-       Si el jugador está muerto o tiene 0 HP,
-       NO guardamos esos valores.
-
-       Así una recarga nunca deja al personaje
-       muerto con 0 de vida.
-    */
-
-    if (
-        player.dead ||
-        player.hp <= 0
-    ) {
-
-        return;
-    }
-
-    const data = {
-
-        player: {
-
-            x: player.x,
-
-            y: player.y,
-
-            level: player.level,
-
-            xp: player.xp,
-
-            xpNeeded:
-                player.xpNeeded,
-
-            hp: player.hp,
-
-            maxHp:
-                player.maxHp,
-
-            mana:
-                player.mana,
-
-            maxMana:
-                player.maxMana,
-
-            damage:
-                player.damage
-        },
-
-        inventory: {
-
-            gold:
-                inventory.gold,
-
-            wood:
-                inventory.wood,
-
-            stone:
-                inventory.stone,
-
-            copper:
-                inventory.copper,
-
-            iron:
-                inventory.iron,
-
-            fish:
-                inventory.fish
-        }
-    };
-
-    try {
-
-        localStorage.setItem(
-            "reinosDeCenizaSave",
-            JSON.stringify(data)
+    const gold =
+        document.getElementById(
+            "gold"
         );
 
-    } catch (error) {
-
-        console.log(
-            "No se pudo guardar",
-            error
+    const wood =
+        document.getElementById(
+            "wood"
         );
+
+    const stone =
+        document.getElementById(
+            "stone"
+        );
+
+    const copper =
+        document.getElementById(
+            "copper"
+        );
+
+    const iron =
+        document.getElementById(
+            "iron"
+        );
+
+    const fish =
+        document.getElementById(
+            "fish"
+        );
+
+    if (hpBar) {
+
+        hpBar.style.width =
+            (
+                player.hp /
+                player.maxHp *
+                100
+            ) + "%";
     }
-}
 
-/* =========================================================
-   📂 CARGAR PARTIDA
-   ========================================================= */
+    if (xpBar) {
 
-function loadGame() {
+        xpBar.style.width =
+            (
+                player.xp /
+                player.xpNeeded *
+                100
+            ) + "%";
+    }
 
-    try {
+    if (hudText) {
 
-        const saved =
-            localStorage.getItem(
-                "reinosDeCenizaSave"
-            );
+        if (player.dead) {
 
-        if (!saved) return;
+            hudText.textContent =
+                "💀 Muerto - " +
+                Math.ceil(
+                    player.respawnTimer
+                ) +
+                "s";
 
-        const data =
-            JSON.parse(saved);
+        } else {
 
-        if (data.player) {
-
-            Object.assign(
-                player,
-                data.player
-            );
-        }
-
-        if (data.inventory) {
-
-            Object.assign(
-                inventory,
-                data.inventory
-            );
-        }
-
-        /*
-           SEGURIDAD EXTRA:
-
-           Si por alguna razón una partida vieja
-           tiene 0 HP, la recuperamos.
-        */
-
-        if (
-            !Number.isFinite(player.hp) ||
-            player.hp <= 0
-        ) {
-
-            player.hp =
+            hudText.textContent =
+                "Nivel " +
+                player.level +
+                " | HP " +
+                Math.ceil(player.hp) +
+                "/" +
                 player.maxHp;
         }
-
-        if (
-            !Number.isFinite(player.mana) ||
-            player.mana <= 0
-        ) {
-
-            player.mana =
-                player.maxMana;
-        }
-
-        player.dead = false;
-
-        player.respawnTimer = 0;
-
-    } catch (error) {
-
-        console.log(
-            "Error cargando partida",
-            error
-        );
-
-        /*
-           Si el guardado está corrupto,
-           empezamos con una partida segura.
-        */
-
-        player.x =
-            respawnPoint.x;
-
-        player.y =
-            respawnPoint.y;
-
-        player.hp =
-            player.maxHp;
-
-        player.mana =
-            player.maxMana;
-
-        player.dead = false;
     }
+
+    if (gold)
+        gold.textContent =
+            inventory.gold;
+
+    if (wood)
+        wood.textContent =
+            inventory.wood;
+
+    if (stone)
+        stone.textContent =
+            inventory.stone;
+
+    if (copper)
+        copper.textContent =
+            inventory.copper;
+
+    if (iron)
+        iron.textContent =
+            inventory.iron;
+
+    if (fish)
+        fish.textContent =
+            inventory.fish;
 }
 
-loadGame();
-
 /* =========================================================
-   MENSAJES
+   MENSAJE
    ========================================================= */
 
 function updateMessage(dt) {
 
-    if (
-        messageTimer <= 0
-    ) return;
+    if (messageTimer <= 0) return;
 
     messageTimer -= dt;
 
@@ -2318,47 +1771,780 @@ function updateMessage(dt) {
         messageTimer <= 0
     ) {
 
-        document.getElementById(
-            "message"
-        ).style.opacity = "0";
+        const element =
+            document.getElementById(
+                "message"
+            );
+
+        if (element) {
+
+            element.style.opacity =
+                "0";
+        }
     }
 }
 
 /* =========================================================
-   UPDATE
+   CÁMARA
    ========================================================= */
 
-function update(dt) {
+function updateCamera() {
 
-    if (
-        player.attackCooldown > 0
+    camera.x =
+        player.x -
+        screenWidth / 2;
+
+    camera.y =
+        player.y -
+        screenHeight / 2;
+
+    camera.x =
+        clamp(
+            camera.x,
+            0,
+            Math.max(
+                0,
+                WORLD_WIDTH -
+                screenWidth
+            )
+        );
+
+    camera.y =
+        clamp(
+            camera.y,
+            0,
+            Math.max(
+                0,
+                WORLD_HEIGHT -
+                screenHeight
+            )
+        );
+}
+
+/* =========================================================
+   DIBUJAR TERRENO
+   ========================================================= */
+
+function drawTerrain() {
+
+    const startX =
+        Math.max(
+            0,
+            Math.floor(
+                camera.x / TILE
+            ) - 1
+        );
+
+    const endX =
+        Math.min(
+            Math.ceil(
+                WORLD_WIDTH / TILE
+            ),
+            Math.ceil(
+                (
+                    camera.x +
+                    screenWidth
+                ) / TILE
+            ) + 1
+        );
+
+    const startY =
+        Math.max(
+            0,
+            Math.floor(
+                camera.y / TILE
+            ) - 1
+        );
+
+    const endY =
+        Math.min(
+            Math.ceil(
+                WORLD_HEIGHT / TILE
+            ),
+            Math.ceil(
+                (
+                    camera.y +
+                    screenHeight
+                ) / TILE
+            ) + 1
+        );
+
+    for (
+        let y = startY;
+        y < endY;
+        y++
     ) {
 
-        player.attackCooldown -= dt;
+        for (
+            let x = startX;
+            x < endX;
+            x++
+        ) {
+
+            const index =
+                y *
+                Math.ceil(
+                    WORLD_WIDTH / TILE
+                ) +
+                x;
+
+            const tile =
+                terrain[index];
+
+            if (!tile) continue;
+
+            const sx =
+                tile.x -
+                camera.x;
+
+            const sy =
+                tile.y -
+                camera.y;
+
+            if (
+                tile.type ===
+                TILE_TYPES.GRASS
+            ) {
+
+                ctx.fillStyle =
+                    "#39733b";
+
+            } else if (
+                tile.type ===
+                TILE_TYPES.WATER
+            ) {
+
+                ctx.fillStyle =
+                    "#236b91";
+
+            } else if (
+                tile.type ===
+                TILE_TYPES.SAND
+            ) {
+
+                ctx.fillStyle =
+                    "#b89b58";
+
+            } else if (
+                tile.type ===
+                TILE_TYPES.FOREST
+            ) {
+
+                ctx.fillStyle =
+                    "#28552d";
+
+            } else {
+
+                ctx.fillStyle =
+                    "#555";
+            }
+
+            ctx.fillRect(
+                sx,
+                sy,
+                TILE + 1,
+                TILE + 1
+            );
+
+            /*
+             * Detalles ligeros del terreno
+             */
+
+            if (
+                tile.type ===
+                TILE_TYPES.GRASS
+            ) {
+
+                ctx.fillStyle =
+                    "rgba(255,255,255,.025)";
+
+                ctx.fillRect(
+                    sx,
+                    sy,
+                    TILE,
+                    2
+                );
+            }
+        }
     }
-
-    updateMovement(dt);
-
-    updateEnemies(dt);
-
-    updateRespawn(dt);
-
-    updateResources(dt);
-
-    updateFloatingTexts(dt);
-
-    updateCamera();
-
-    updateMessage(dt);
-
-    updateHUD();
 }
 
 /* =========================================================
-   DRAW
+   DIBUJAR RECURSOS
    ========================================================= */
 
-function draw() {
+function drawResource(resource) {
+
+    if (
+        resource.hp <= 0
+    ) return;
+
+    const sx =
+        resource.x -
+        camera.x;
+
+    const sy =
+        resource.y -
+        camera.y;
+
+    if (
+        sx < -60 ||
+        sy < -60 ||
+        sx > screenWidth + 60 ||
+        sy > screenHeight + 60
+    ) {
+
+        return;
+    }
+
+    ctx.save();
+
+    if (
+        resource.type ===
+        "tree"
+    ) {
+
+        /* Tronco */
+
+        ctx.fillStyle =
+            "#70452a";
+
+        ctx.fillRect(
+            sx - 7,
+            sy,
+            14,
+            30
+        );
+
+        /* Copa */
+
+        ctx.fillStyle =
+            "#185c28";
+
+        ctx.beginPath();
+
+        ctx.arc(
+            sx,
+            sy - 12,
+            25,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+
+        ctx.fillStyle =
+            "#287b36";
+
+        ctx.beginPath();
+
+        ctx.arc(
+            sx - 9,
+            sy - 18,
+            15,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+
+    } else if (
+        resource.type ===
+        "rock"
+    ) {
+
+        ctx.fillStyle =
+            "#777";
+
+        ctx.beginPath();
+
+        ctx.moveTo(
+            sx - 23,
+            sy + 15
+        );
+
+        ctx.lineTo(
+            sx - 15,
+            sy - 12
+        );
+
+        ctx.lineTo(
+            sx + 8,
+            sy - 20
+        );
+
+        ctx.lineTo(
+            sx + 24,
+            sy + 5
+        );
+
+        ctx.lineTo(
+            sx + 10,
+            sy + 20
+        );
+
+        ctx.closePath();
+
+        ctx.fill();
+
+    } else if (
+        resource.type ===
+        "copper"
+    ) {
+
+        ctx.fillStyle =
+            "#b76532";
+
+        ctx.beginPath();
+
+        ctx.arc(
+            sx,
+            sy,
+            20,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+
+        ctx.fillStyle =
+            "#e49a55";
+
+        ctx.beginPath();
+
+        ctx.arc(
+            sx - 6,
+            sy - 6,
+            6,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+
+    } else if (
+        resource.type ===
+        "iron"
+    ) {
+
+        ctx.fillStyle =
+            "#42484d";
+
+        ctx.beginPath();
+
+        ctx.arc(
+            sx,
+            sy,
+            21,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+
+        ctx.fillStyle =
+            "#8e969c";
+
+        ctx.beginPath();
+
+        ctx.arc(
+            sx - 6,
+            sy - 6,
+            6,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+    }
+
+    ctx.restore();
+}
+
+/* =========================================================
+   DIBUJAR ENEMIGO
+   ========================================================= */
+
+function drawEnemy(enemy) {
+
+    if (enemy.dead) return;
+
+    const sx =
+        enemy.x -
+        camera.x;
+
+    const sy =
+        enemy.y -
+        camera.y;
+
+    if (
+        sx < -70 ||
+        sy < -70 ||
+        sx > screenWidth + 70 ||
+        sy > screenHeight + 70
+    ) {
+
+        return;
+    }
+
+    ctx.save();
+
+    if (
+        enemy.hitFlash > 0
+    ) {
+
+        ctx.globalAlpha = 0.55;
+    }
+
+    if (
+        enemy.type ===
+        "wolf"
+    ) {
+
+        ctx.fillStyle =
+            "#6d747b";
+
+    } else if (
+        enemy.type ===
+        "boar"
+    ) {
+
+        ctx.fillStyle =
+            "#7b4a2e";
+
+    } else {
+
+        ctx.fillStyle =
+            "#4f8f45";
+    }
+
+    ctx.beginPath();
+
+    ctx.arc(
+        sx,
+        sy,
+        enemy.radius,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.fill();
+
+    /*
+     * Ojos
+     */
+
+    ctx.fillStyle =
+        "#fff";
+
+    ctx.beginPath();
+
+    ctx.arc(
+        sx - 7,
+        sy - 5,
+        4,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.arc(
+        sx + 7,
+        sy - 5,
+        4,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.fill();
+
+    ctx.fillStyle =
+        "#111";
+
+    ctx.beginPath();
+
+    ctx.arc(
+        sx - 7,
+        sy - 5,
+        2,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.arc(
+        sx + 7,
+        sy - 5,
+        2,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.fill();
+
+    /*
+     * Barra de vida
+     */
+
+    const barWidth = 50;
+    const barHeight = 6;
+
+    ctx.fillStyle =
+        "rgba(0,0,0,.7)";
+
+    ctx.fillRect(
+        sx - barWidth / 2,
+        sy - enemy.radius - 13,
+        barWidth,
+        barHeight
+    );
+
+    ctx.fillStyle =
+        "#e53935";
+
+    ctx.fillRect(
+        sx - barWidth / 2,
+        sy - enemy.radius - 13,
+        barWidth *
+        Math.max(
+            0,
+            enemy.hp /
+            enemy.maxHp
+        ),
+        barHeight
+    );
+
+    ctx.restore();
+}
+
+/* =========================================================
+   DIBUJAR JUGADOR
+   ========================================================= */
+
+function drawPlayer() {
+
+    const sx =
+        player.x -
+        camera.x;
+
+    const sy =
+        player.y -
+        camera.y;
+
+    ctx.save();
+
+    /*
+     * Sombra
+     */
+
+    ctx.fillStyle =
+        "rgba(0,0,0,.35)";
+
+    ctx.beginPath();
+
+    ctx.ellipse(
+        sx,
+        sy + 20,
+        24,
+        9,
+        0,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.fill();
+
+    if (
+        player.dead
+    ) {
+
+        ctx.globalAlpha =
+            0.55;
+    }
+
+    /*
+     * Cuerpo
+     */
+
+    ctx.fillStyle =
+        "#2464c0";
+
+    ctx.beginPath();
+
+    ctx.arc(
+        sx,
+        sy,
+        player.radius,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.fill();
+
+    /*
+     * Armadura
+     */
+
+    ctx.fillStyle =
+        "#9aa4ad";
+
+    ctx.beginPath();
+
+    ctx.arc(
+        sx,
+        sy - 7,
+        13,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.fill();
+
+    /*
+     * Visor
+     */
+
+    ctx.fillStyle =
+        "#222";
+
+    ctx.fillRect(
+        sx - 11,
+        sy - 9,
+        22,
+        7
+    );
+
+    /*
+     * Dirección
+     */
+
+    ctx.strokeStyle =
+        "#fff";
+
+    ctx.lineWidth = 4;
+
+    ctx.beginPath();
+
+    ctx.moveTo(
+        sx,
+        sy
+    );
+
+    ctx.lineTo(
+        sx +
+        player.directionX *
+        26,
+        sy +
+        player.directionY *
+        26
+    );
+
+    ctx.stroke();
+
+    /*
+     * Nombre
+     */
+
+    ctx.fillStyle =
+        "#fff";
+
+    ctx.font =
+        "bold 12px Arial";
+
+    ctx.textAlign =
+        "center";
+
+    ctx.fillText(
+        "Aventurero",
+        sx,
+        sy - 38
+    );
+
+    ctx.restore();
+}
+
+/* =========================================================
+   DIBUJAR TEXTOS FLOTANTES
+   ========================================================= */
+
+function drawFloatingTexts(dt) {
+
+    for (
+        let i =
+            floatingTexts.length - 1;
+        i >= 0;
+        i--
+    ) {
+
+        const text =
+            floatingTexts[i];
+
+        text.life -= dt;
+
+        text.y -=
+            35 * dt;
+
+        if (
+            text.life <= 0
+        ) {
+
+            floatingTexts.splice(
+                i,
+                1
+            );
+
+            continue;
+        }
+
+        const sx =
+            text.x -
+            camera.x;
+
+        const sy =
+            text.y -
+            camera.y;
+
+        ctx.save();
+
+        ctx.globalAlpha =
+            Math.max(
+                0,
+                text.life
+            );
+
+        ctx.fillStyle =
+            text.color;
+
+        ctx.font =
+            "bold 16px Arial";
+
+        ctx.textAlign =
+            "center";
+
+        ctx.strokeStyle =
+            "#000";
+
+        ctx.lineWidth = 3;
+
+        ctx.strokeText(
+            text.text,
+            sx,
+            sy
+        );
+
+        ctx.fillText(
+            text.text,
+            sx,
+            sy
+        );
+
+        ctx.restore();
+    }
+}
+
+/* =========================================================
+   DIBUJAR TODO
+   ========================================================= */
+
+function render(dt) {
 
     ctx.clearRect(
         0,
@@ -2367,20 +2553,114 @@ function draw() {
         screenHeight
     );
 
+    updateCamera();
+
     drawTerrain();
 
-    drawResources();
+    for (
+        const resource of resources
+    ) {
 
-    drawEnemies();
+        drawResource(
+            resource
+        );
+    }
+
+    for (
+        const enemy of enemies
+    ) {
+
+        drawEnemy(
+            enemy
+        );
+    }
 
     drawPlayer();
 
-    drawFloatingTexts();
+    drawFloatingTexts(dt);
+
+    /*
+     * Efecto de muerte
+     */
+
+    if (player.dead) {
+
+        ctx.fillStyle =
+            "rgba(0,0,0,.35)";
+
+        ctx.fillRect(
+            0,
+            0,
+            screenWidth,
+            screenHeight
+        );
+
+        ctx.fillStyle =
+            "#fff";
+
+        ctx.font =
+            "bold 28px Arial";
+
+        ctx.textAlign =
+            "center";
+
+        ctx.fillText(
+            "💀 HAS MUERTO",
+            screenWidth / 2,
+            screenHeight / 2
+        );
+
+        ctx.font =
+            "bold 18px Arial";
+
+        ctx.fillText(
+            "Reapareciendo...",
+            screenWidth / 2,
+            screenHeight / 2 + 35
+        );
+    }
 }
 
 /* =========================================================
-   GAME LOOP
+   ACTUALIZACIÓN
    ========================================================= */
+
+function update(dt) {
+
+    if (
+        dt > 0.05
+    ) {
+
+        dt = 0.05;
+    }
+
+    if (
+        player.attackCooldown > 0
+    ) {
+
+        player.attackCooldown -=
+            dt;
+    }
+
+    updateMovement(dt);
+
+    updateEnemies(dt);
+
+    updateResources(dt);
+
+    updateRespawn(dt);
+
+    updateMessage(dt);
+
+    updateHUD();
+}
+
+/* =========================================================
+   LOOP PRINCIPAL
+   ========================================================= */
+
+let lastTime =
+    performance.now();
 
 function gameLoop(now) {
 
@@ -2390,20 +2670,17 @@ function gameLoop(now) {
 
     lastTime = now;
 
-    /*
-       Evitar saltos grandes cuando
-       el navegador se pausa.
-    */
+    if (
+        !Number.isFinite(dt) ||
+        dt < 0
+    ) {
 
-    dt =
-        Math.min(
-            dt,
-            0.05
-        );
+        dt = 0;
+    }
 
     update(dt);
 
-    draw();
+    render(dt);
 
     requestAnimationFrame(
         gameLoop
@@ -2411,28 +2688,36 @@ function gameLoop(now) {
 }
 
 /* =========================================================
-   AUTOGUARDADO
+   INICIAR
    ========================================================= */
 
-setInterval(() => {
-
-    saveGame();
-
-}, 10000);
-
-/* =========================================================
-   INICIO
-   ========================================================= */
-
-updateCamera();
+loadGame();
 
 updateHUD();
 
+updateCamera();
+
 showMessage(
-    "⚔️ Bienvenido a Reinos de Ceniza"
+    "⚔️ ¡Bienvenido a Reinos de Ceniza!"
 );
 
 requestAnimationFrame(
     gameLoop
 );
-```
+
+/* =========================================================
+   AUTOGUARDADO
+   ========================================================= */
+
+setInterval(
+    function() {
+
+        saveGame();
+
+    },
+    10000
+);
+
+console.log(
+    "⚔️ Reinos de Ceniza iniciado correctamente."
+);
