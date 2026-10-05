@@ -1,8 +1,9 @@
+```javascript
 "use strict";
 
 /* =========================================================
-   REINOS DE CENIZA
-   GAME.JS v0.6
+   ⚔️ REINOS DE CENIZA
+   GAME.JS v0.7
    ========================================================= */
 
 const canvas = document.getElementById("world");
@@ -11,12 +12,11 @@ const ctx = canvas.getContext("2d");
 ctx.imageSmoothingEnabled = false;
 
 /* =========================================================
-   CONFIGURACIÓN
+   CONFIGURACIÓN DEL MUNDO
    ========================================================= */
 
 const WORLD_WIDTH = 5000;
 const WORLD_HEIGHT = 5000;
-
 const TILE = 64;
 
 let screenWidth = window.innerWidth;
@@ -29,9 +29,16 @@ let camera = {
     y: 0
 };
 
-let gameTime = 0;
-
 let lastTime = performance.now();
+
+/* =========================================================
+   RESPAWN
+   ========================================================= */
+
+const respawnPoint = {
+    x: WORLD_WIDTH / 2,
+    y: WORLD_HEIGHT / 2
+};
 
 /* =========================================================
    RESIZE
@@ -87,8 +94,8 @@ function randomInt(min, max) {
 
 const player = {
 
-    x: WORLD_WIDTH / 2,
-    y: WORLD_HEIGHT / 2,
+    x: respawnPoint.x,
+    y: respawnPoint.y,
 
     radius: 22,
 
@@ -118,7 +125,45 @@ const player = {
     directionY: 1,
 
     dead: false,
+
     respawnTimer: 0
+};
+
+/* =========================================================
+   🛠️ HERRAMIENTAS EQUIPADAS
+   ========================================================= */
+
+const tools = {
+
+    axe: {
+        name: "Hacha",
+        equipped: true
+    },
+
+    pickaxe: {
+        name: "Pico",
+        equipped: true
+    },
+
+    fishingRod: {
+        name: "Caña de pescar",
+        equipped: true
+    }
+};
+
+/*
+   Recursos que puede recoger cada herramienta
+*/
+
+const resourceTools = {
+
+    tree: "axe",
+
+    rock: "pickaxe",
+
+    copper: "pickaxe",
+
+    iron: "pickaxe"
 };
 
 /* =========================================================
@@ -164,7 +209,8 @@ function updateJoystick(clientX, clientY) {
     let dx = clientX - centerX;
     let dy = clientY - centerY;
 
-    const length = Math.sqrt(dx * dx + dy * dy);
+    const length =
+        Math.sqrt(dx * dx + dy * dy);
 
     if (length > joystickRadius) {
 
@@ -230,7 +276,10 @@ joystick.addEventListener("touchend", e => {
 
 }, { passive: false });
 
-joystick.addEventListener("touchcancel", resetJoystick);
+joystick.addEventListener(
+    "touchcancel",
+    resetJoystick
+);
 
 /* Mouse */
 
@@ -254,7 +303,10 @@ window.addEventListener("mousemove", e => {
     );
 });
 
-window.addEventListener("mouseup", resetJoystick);
+window.addEventListener(
+    "mouseup",
+    resetJoystick
+);
 
 /* =========================================================
    TECLADO
@@ -267,6 +319,9 @@ window.addEventListener("keydown", e => {
     keys[e.key.toLowerCase()] = true;
 
     if (e.key === " ") {
+
+        e.preventDefault();
+
         attack();
     }
 });
@@ -295,24 +350,20 @@ function generateTerrain() {
 
     terrain.length = 0;
 
-    for (
-        let y = 0;
-        y < WORLD_HEIGHT;
-        y += TILE
-    ) {
+    const columns =
+        Math.floor(WORLD_WIDTH / TILE);
 
-        for (
-            let x = 0;
-            x < WORLD_WIDTH;
-            x += TILE
-        ) {
+    const rows =
+        Math.floor(WORLD_HEIGHT / TILE);
+
+    for (let y = 0; y < rows; y++) {
+
+        for (let x = 0; x < columns; x++) {
 
             let type = TILE_TYPES.GRASS;
 
-            const nx = x / WORLD_WIDTH;
-            const ny = y / WORLD_HEIGHT;
-
-            /* Agua alrededor de algunas zonas */
+            const nx = x / columns;
+            const ny = y / rows;
 
             if (
                 Math.sin(nx * 12) +
@@ -337,8 +388,8 @@ function generateTerrain() {
             }
 
             terrain.push({
-                x,
-                y,
+                x: x * TILE,
+                y: y * TILE,
                 type
             });
         }
@@ -348,12 +399,15 @@ function generateTerrain() {
 generateTerrain();
 
 /* =========================================================
-   OBJETOS DEL MAPA
+   RECURSOS
    ========================================================= */
 
 const resources = [];
 
 function createResource(type, x, y) {
+
+    const maxHp =
+        type === "tree" ? 3 : 2;
 
     resources.push({
 
@@ -364,9 +418,11 @@ function createResource(type, x, y) {
 
         radius: 20,
 
-        hp: type === "tree" ? 3 : 2,
+        hp: maxHp,
 
-        maxHp: type === "tree" ? 3 : 2
+        maxHp,
+
+        respawnTimer: 0
     });
 }
 
@@ -376,27 +432,41 @@ function generateResources() {
 
     for (let i = 0; i < 260; i++) {
 
-        const x = random(100, WORLD_WIDTH - 100);
-        const y = random(100, WORLD_HEIGHT - 100);
+        const x =
+            random(100, WORLD_WIDTH - 100);
+
+        const y =
+            random(100, WORLD_HEIGHT - 100);
 
         const typeRoll = Math.random();
 
         let type;
 
         if (typeRoll < 0.45) {
+
             type = "tree";
+
         }
         else if (typeRoll < 0.70) {
+
             type = "rock";
+
         }
         else if (typeRoll < 0.85) {
+
             type = "copper";
+
         }
         else {
+
             type = "iron";
         }
 
-        createResource(type, x, y);
+        createResource(
+            type,
+            x,
+            y
+        );
     }
 }
 
@@ -411,32 +481,53 @@ const enemies = [];
 const enemyTypes = {
 
     wolf: {
+
         name: "Lobo",
+
         hp: 70,
+
         damage: 12,
+
         speed: 110,
+
         radius: 23,
+
         xp: 30,
+
         gold: 5
     },
 
     boar: {
+
         name: "Jabalí",
+
         hp: 100,
+
         damage: 15,
+
         speed: 80,
+
         radius: 25,
+
         xp: 40,
+
         gold: 8
     },
 
     goblin: {
+
         name: "Goblin",
+
         hp: 130,
+
         damage: 20,
+
         speed: 65,
+
         radius: 25,
+
         xp: 60,
+
         gold: 15
     }
 };
@@ -450,8 +541,11 @@ function spawnEnemy(type) {
 
     do {
 
-        x = random(200, WORLD_WIDTH - 200);
-        y = random(200, WORLD_HEIGHT - 200);
+        x =
+            random(200, WORLD_WIDTH - 200);
+
+        y =
+            random(200, WORLD_HEIGHT - 200);
 
     } while (
         Math.abs(x - player.x) < 400 &&
@@ -470,6 +564,7 @@ function spawnEnemy(type) {
         radius: data.radius,
 
         hp: data.hp,
+
         maxHp: data.hp,
 
         damage: data.damage,
@@ -497,12 +592,17 @@ function generateEnemies() {
         const r = Math.random();
 
         if (r < 0.45) {
+
             spawnEnemy("wolf");
+
         }
         else if (r < 0.75) {
+
             spawnEnemy("boar");
+
         }
         else {
+
             spawnEnemy("goblin");
         }
     }
@@ -511,18 +611,24 @@ function generateEnemies() {
 generateEnemies();
 
 /* =========================================================
-   EFECTOS
+   TEXTOS FLOTANTES
    ========================================================= */
 
 const floatingTexts = [];
 
-function floatingText(text, x, y, color = "#fff") {
+function floatingText(
+    text,
+    x,
+    y,
+    color = "#fff"
+) {
 
     floatingTexts.push({
 
         text,
 
         x,
+
         y,
 
         life: 1,
@@ -539,7 +645,8 @@ let messageTimer = 0;
 
 function showMessage(text) {
 
-    const element = document.getElementById("message");
+    const element =
+        document.getElementById("message");
 
     element.textContent = text;
 
@@ -549,7 +656,7 @@ function showMessage(text) {
 }
 
 /* =========================================================
-   ATAQUE
+   ⚔️ ATAQUE
    ========================================================= */
 
 function attack() {
@@ -558,7 +665,8 @@ function attack() {
 
     if (player.attackCooldown > 0) return;
 
-    player.attackCooldown = player.attackDelay;
+    player.attackCooldown =
+        player.attackDelay;
 
     let target = null;
 
@@ -568,7 +676,8 @@ function attack() {
 
         if (enemy.dead) continue;
 
-        const d = distance(player, enemy);
+        const d =
+            distance(player, enemy);
 
         if (
             d <= player.attackRange &&
@@ -576,6 +685,7 @@ function attack() {
         ) {
 
             nearest = d;
+
             target = enemy;
         }
     }
@@ -592,10 +702,11 @@ function attack() {
         return;
     }
 
-    const damage = randomInt(
-        Math.floor(player.damage * 0.8),
-        Math.floor(player.damage * 1.2)
-    );
+    const damage =
+        randomInt(
+            Math.floor(player.damage * 0.8),
+            Math.floor(player.damage * 1.2)
+        );
 
     target.hp -= damage;
 
@@ -631,36 +742,50 @@ function attack() {
     }
 }
 
-/* Botón ataque */
+/* =========================================================
+   BOTÓN DE ATAQUE
+   ========================================================= */
 
-document.getElementById("attackButton")
-    .addEventListener("touchstart", e => {
+document
+    .getElementById("attackButton")
+    .addEventListener(
+        "touchstart",
+        e => {
 
-        e.preventDefault();
+            e.preventDefault();
 
-        attack();
+            attack();
 
-    }, { passive: false });
+        },
+        { passive: false }
+    );
 
-document.getElementById("attackButton")
-    .addEventListener("mousedown", e => {
+document
+    .getElementById("attackButton")
+    .addEventListener(
+        "mousedown",
+        e => {
 
-        e.preventDefault();
+            e.preventDefault();
 
-        attack();
-    });
+            attack();
+        }
+    );
 
 /* =========================================================
-   XP
+   ⭐ XP
    ========================================================= */
 
 function gainXP(amount) {
 
     player.xp += amount;
 
-    while (player.xp >= player.xpNeeded) {
+    while (
+        player.xp >= player.xpNeeded
+    ) {
 
-        player.xp -= player.xpNeeded;
+        player.xp -=
+            player.xpNeeded;
 
         levelUp();
     }
@@ -671,34 +796,42 @@ function levelUp() {
     player.level++;
 
     player.xpNeeded =
-        Math.floor(player.xpNeeded * 1.35);
+        Math.floor(
+            player.xpNeeded * 1.35
+        );
 
     player.maxHp += 20;
 
-    player.hp = player.maxHp;
+    player.hp =
+        player.maxHp;
 
     player.maxMana += 10;
 
-    player.mana = player.maxMana;
+    player.mana =
+        player.maxMana;
 
     player.damage += 5;
 
     floatingText(
-        "¡NIVEL " + player.level + "!",
+        "¡NIVEL " +
+        player.level +
+        "!",
         player.x,
         player.y - 70,
         "#ffd54f"
     );
 
     showMessage(
-        "🎉 ¡Has alcanzado el nivel " + player.level + "!"
+        "🎉 ¡Nivel " +
+        player.level +
+        "!"
     );
 
     saveGame();
 }
 
 /* =========================================================
-   MOVIMIENTO
+   🕹️ MOVIMIENTO
    ========================================================= */
 
 function updateMovement(dt) {
@@ -708,52 +841,79 @@ function updateMovement(dt) {
     let moveX = joystickX;
     let moveY = joystickY;
 
-    if (keys["w"] || keys["arrowup"]) {
+    if (
+        keys["w"] ||
+        keys["arrowup"]
+    ) {
         moveY -= 1;
     }
 
-    if (keys["s"] || keys["arrowdown"]) {
+    if (
+        keys["s"] ||
+        keys["arrowdown"]
+    ) {
         moveY += 1;
     }
 
-    if (keys["a"] || keys["arrowleft"]) {
+    if (
+        keys["a"] ||
+        keys["arrowleft"]
+    ) {
         moveX -= 1;
     }
 
-    if (keys["d"] || keys["arrowright"]) {
+    if (
+        keys["d"] ||
+        keys["arrowright"]
+    ) {
         moveX += 1;
     }
 
     const length =
-        Math.sqrt(moveX * moveX + moveY * moveY);
+        Math.sqrt(
+            moveX * moveX +
+            moveY * moveY
+        );
 
     if (length > 0) {
 
         moveX /= length;
         moveY /= length;
 
-        player.directionX = moveX;
-        player.directionY = moveY;
+        player.directionX =
+            moveX;
 
-        player.x += moveX * player.speed * dt;
-        player.y += moveY * player.speed * dt;
+        player.directionY =
+            moveY;
+
+        player.x +=
+            moveX *
+            player.speed *
+            dt;
+
+        player.y +=
+            moveY *
+            player.speed *
+            dt;
     }
 
-    player.x = clamp(
-        player.x,
-        30,
-        WORLD_WIDTH - 30
-    );
+    player.x =
+        clamp(
+            player.x,
+            30,
+            WORLD_WIDTH - 30
+        );
 
-    player.y = clamp(
-        player.y,
-        30,
-        WORLD_HEIGHT - 30
-    );
+    player.y =
+        clamp(
+            player.y,
+            30,
+            WORLD_HEIGHT - 30
+        );
 }
 
 /* =========================================================
-   ENEMIGOS
+   👹 ENEMIGOS
    ========================================================= */
 
 function updateEnemies(dt) {
@@ -763,17 +923,23 @@ function updateEnemies(dt) {
         if (enemy.dead) continue;
 
         if (enemy.hitFlash > 0) {
+
             enemy.hitFlash -= dt;
         }
 
         enemy.attackCooldown -= dt;
 
-        const dx = player.x - enemy.x;
-        const dy = player.y - enemy.y;
+        const dx =
+            player.x - enemy.x;
 
-        const d = Math.sqrt(dx * dx + dy * dy);
+        const dy =
+            player.y - enemy.y;
 
-        /* Agresividad */
+        const d =
+            Math.sqrt(
+                dx * dx +
+                dy * dy
+            );
 
         if (d < 400) {
 
@@ -795,12 +961,17 @@ function updateEnemies(dt) {
                 enemy.attackCooldown <= 0
             ) {
 
-                enemy.attackCooldown = 1.2;
+                enemy.attackCooldown =
+                    1.2;
 
                 const damage =
                     randomInt(
-                        Math.floor(enemy.damage * .8),
-                        Math.floor(enemy.damage * 1.2)
+                        Math.floor(
+                            enemy.damage * 0.8
+                        ),
+                        Math.floor(
+                            enemy.damage * 1.2
+                        )
                     );
 
                 player.hp -= damage;
@@ -814,27 +985,20 @@ function updateEnemies(dt) {
 
                 if (player.hp <= 0) {
 
-                    player.hp = 0;
-
-                    player.dead = true;
-
-                    player.respawnTimer = 3;
-
-                    showMessage(
-                        "💀 Has muerto..."
-                    );
+                    die();
                 }
             }
         }
     }
 
-    /* Respawn de enemigos */
-
     let deadCount = 0;
 
     for (const enemy of enemies) {
 
-        if (enemy.dead) deadCount++;
+        if (enemy.dead) {
+
+            deadCount++;
+        }
     }
 
     if (deadCount > 10) {
@@ -852,24 +1016,63 @@ function updateEnemies(dt) {
         }
     }
 
-    while (enemies.length < 25) {
+    while (
+        enemies.length < 25
+    ) {
 
-        const r = Math.random();
+        const r =
+            Math.random();
 
-        if (r < .45) {
+        if (r < 0.45) {
+
             spawnEnemy("wolf");
+
         }
-        else if (r < .75) {
+        else if (r < 0.75) {
+
             spawnEnemy("boar");
+
         }
         else {
+
             spawnEnemy("goblin");
         }
     }
 }
 
 /* =========================================================
-   RESPAWN
+   💀 MUERTE
+   ========================================================= */
+
+function die() {
+
+    if (player.dead) return;
+
+    player.hp = 0;
+
+    player.mana = 0;
+
+    player.dead = true;
+
+    player.respawnTimer = 3;
+
+    /*
+       Guardamos inmediatamente una versión segura.
+       Nunca se guarda el personaje muerto.
+    */
+
+    showMessage(
+        "💀 Has muerto... revivirás en 3 segundos"
+    );
+
+    /*
+       No guardamos hp 0.
+       Esto evita que una recarga deje al jugador muerto.
+    */
+}
+
+/* =========================================================
+   ✨ RESPAWN
    ========================================================= */
 
 function updateRespawn(dt) {
@@ -878,25 +1081,44 @@ function updateRespawn(dt) {
 
     player.respawnTimer -= dt;
 
-    if (player.respawnTimer <= 0) {
+    if (
+        player.respawnTimer <= 0
+    ) {
 
-        player.dead = false;
-
-        player.hp = player.maxHp;
-
-        player.mana = player.maxMana;
-
-        player.x = WORLD_WIDTH / 2;
-        player.y = WORLD_HEIGHT / 2;
-
-        showMessage(
-            "✨ Has vuelto a la vida"
-        );
+        respawnPlayer();
     }
 }
 
+function respawnPlayer() {
+
+    player.dead = false;
+
+    player.hp =
+        player.maxHp;
+
+    player.mana =
+        player.maxMana;
+
+    player.x =
+        respawnPoint.x;
+
+    player.y =
+        respawnPoint.y;
+
+    player.directionX = 0;
+    player.directionY = 1;
+
+    player.respawnTimer = 0;
+
+    showMessage(
+        "✨ Has vuelto a la vida"
+    );
+
+    saveGame();
+}
+
 /* =========================================================
-   RECOLECCIÓN
+   🪓⛏️ RECOLECCIÓN
    ========================================================= */
 
 function gatherResource() {
@@ -909,18 +1131,70 @@ function gatherResource() {
 
     for (const resource of resources) {
 
-        if (resource.hp <= 0) continue;
+        if (
+            resource.hp <= 0
+        ) continue;
 
-        const d = distance(player, resource);
+        const d =
+            distance(
+                player,
+                resource
+            );
 
         if (d < nearest) {
 
             nearest = d;
+
             target = resource;
         }
     }
 
-    if (!target) return;
+    if (!target) {
+
+        floatingText(
+            "Acércate a un recurso",
+            player.x,
+            player.y - 40,
+            "#ffff00"
+        );
+
+        return;
+    }
+
+    /*
+       Buscar la herramienta necesaria
+    */
+
+    const requiredTool =
+        resourceTools[
+            target.type
+        ];
+
+    /*
+       Si el recurso necesita herramienta
+       y no está equipada, no se puede recoger.
+    */
+
+    if (
+        requiredTool &&
+        !tools[requiredTool].equipped
+    ) {
+
+        floatingText(
+            "Necesitas " +
+            tools[requiredTool].name,
+            target.x,
+            target.y - 35,
+            "#ffcc00"
+        );
+
+        showMessage(
+            "🛠️ Necesitas equipar " +
+            tools[requiredTool].name
+        );
+
+        return;
+    }
 
     target.hp--;
 
@@ -932,7 +1206,8 @@ function gatherResource() {
 
             inventory.wood++;
 
-            text = "+1 🌲 Madera";
+            text =
+                "+1 🌲 Madera";
 
             break;
 
@@ -940,7 +1215,8 @@ function gatherResource() {
 
             inventory.stone++;
 
-            text = "+1 🪨 Piedra";
+            text =
+                "+1 🪨 Piedra";
 
             break;
 
@@ -948,7 +1224,8 @@ function gatherResource() {
 
             inventory.copper++;
 
-            text = "+1 🔩 Cobre";
+            text =
+                "+1 🔩 Cobre";
 
             break;
 
@@ -956,7 +1233,8 @@ function gatherResource() {
 
             inventory.iron++;
 
-            text = "+1 ⚙️ Hierro";
+            text =
+                "+1 ⚙️ Hierro";
 
             break;
     }
@@ -968,40 +1246,83 @@ function gatherResource() {
         "#fff"
     );
 
+    /*
+       Recurso agotado
+    */
+
     if (target.hp <= 0) {
 
-        target.hp = -1;
+        target.hp = 0;
 
-        setTimeout(() => {
+        target.respawnTimer =
+            10;
 
-            target.hp = target.maxHp;
-
-        }, 10000);
+        showMessage(
+            "Recurso agotado. Volverá en 10 segundos."
+        );
     }
 
     saveGame();
 }
 
-/* Doble toque/click cerca de recursos */
+/* =========================================================
+   🔄 REGENERACIÓN DE RECURSOS
+   ========================================================= */
 
-canvas.addEventListener("dblclick", gatherResource);
+function updateResources(dt) {
+
+    for (const resource of resources) {
+
+        if (
+            resource.hp > 0
+        ) continue;
+
+        resource.respawnTimer -= dt;
+
+        if (
+            resource.respawnTimer <= 0
+        ) {
+
+            resource.hp =
+                resource.maxHp;
+
+            resource.respawnTimer =
+                0;
+        }
+    }
+}
+
+/* =========================================================
+   DOBLE TOQUE PARA RECOGER
+   ========================================================= */
+
+canvas.addEventListener(
+    "dblclick",
+    gatherResource
+);
 
 let lastTap = 0;
 
-canvas.addEventListener("touchend", e => {
+canvas.addEventListener(
+    "touchend",
+    e => {
 
-    const now = Date.now();
+        const now =
+            Date.now();
 
-    if (now - lastTap < 300) {
+        if (
+            now - lastTap < 300
+        ) {
 
-        gatherResource();
+            gatherResource();
+        }
+
+        lastTap = now;
     }
-
-    lastTap = now;
-});
+);
 
 /* =========================================================
-   CÁMARA
+   📷 CÁMARA
    ========================================================= */
 
 function updateCamera() {
@@ -1014,36 +1335,51 @@ function updateCamera() {
         player.y -
         screenHeight / 2;
 
-    camera.x = clamp(
-        camera.x,
-        0,
-        WORLD_WIDTH - screenWidth
-    );
+    camera.x =
+        clamp(
+            camera.x,
+            0,
+            WORLD_WIDTH - screenWidth
+        );
 
-    camera.y = clamp(
-        camera.y,
-        0,
-        WORLD_HEIGHT - screenHeight
-    );
+    camera.y =
+        clamp(
+            camera.y,
+            0,
+            WORLD_HEIGHT - screenHeight
+        );
 }
 
 /* =========================================================
-   DIBUJAR TERRENO
+   🌎 TERRENO
    ========================================================= */
 
 function drawTerrain() {
 
     const startX =
-        Math.floor(camera.x / TILE) * TILE;
+        Math.floor(
+            camera.x / TILE
+        ) * TILE;
 
     const startY =
-        Math.floor(camera.y / TILE) * TILE;
+        Math.floor(
+            camera.y / TILE
+        ) * TILE;
 
     const endX =
-        camera.x + screenWidth + TILE;
+        camera.x +
+        screenWidth +
+        TILE;
 
     const endY =
-        camera.y + screenHeight + TILE;
+        camera.y +
+        screenHeight +
+        TILE;
+
+    const columns =
+        Math.floor(
+            WORLD_WIDTH / TILE
+        );
 
     for (
         let y = startY;
@@ -1066,7 +1402,7 @@ function drawTerrain() {
 
             const index =
                 Math.floor(y / TILE) *
-                Math.floor(WORLD_WIDTH / TILE) +
+                columns +
                 Math.floor(x / TILE);
 
             const tile =
@@ -1074,38 +1410,46 @@ function drawTerrain() {
 
             if (!tile) continue;
 
-            const sx = x - camera.x;
-            const sy = y - camera.y;
+            const sx =
+                x - camera.x;
+
+            const sy =
+                y - camera.y;
 
             switch (tile.type) {
 
                 case TILE_TYPES.GRASS:
 
-                    ctx.fillStyle = "#3d6b3d";
+                    ctx.fillStyle =
+                        "#3d6b3d";
 
                     break;
 
                 case TILE_TYPES.WATER:
 
-                    ctx.fillStyle = "#286080";
+                    ctx.fillStyle =
+                        "#286080";
 
                     break;
 
                 case TILE_TYPES.SAND:
 
-                    ctx.fillStyle = "#b9a45c";
+                    ctx.fillStyle =
+                        "#b9a45c";
 
                     break;
 
                 case TILE_TYPES.FOREST:
 
-                    ctx.fillStyle = "#315b35";
+                    ctx.fillStyle =
+                        "#315b35";
 
                     break;
 
                 case TILE_TYPES.ROCK:
 
-                    ctx.fillStyle = "#555";
+                    ctx.fillStyle =
+                        "#555";
 
                     break;
             }
@@ -1116,43 +1460,29 @@ function drawTerrain() {
                 TILE + 1,
                 TILE + 1
             );
-
-            /* detalles */
-
-            if (
-                tile.type === TILE_TYPES.GRASS ||
-                tile.type === TILE_TYPES.FOREST
-            ) {
-
-                ctx.fillStyle =
-                    "rgba(255,255,255,.035)";
-
-                ctx.fillRect(
-                    sx,
-                    sy,
-                    TILE,
-                    1
-                );
-            }
         }
     }
 }
 
 /* =========================================================
-   DIBUJAR RECURSOS
+   🌲 RECURSOS
    ========================================================= */
 
 function drawResources() {
 
     for (const resource of resources) {
 
-        if (resource.hp <= 0) continue;
+        if (
+            resource.hp <= 0
+        ) continue;
 
         const x =
-            resource.x - camera.x;
+            resource.x -
+            camera.x;
 
         const y =
-            resource.y - camera.y;
+            resource.y -
+            camera.y;
 
         if (
             x < -50 ||
@@ -1161,11 +1491,12 @@ function drawResources() {
             y > screenHeight + 50
         ) continue;
 
-        if (resource.type === "tree") {
+        if (
+            resource.type === "tree"
+        ) {
 
-            /* tronco */
-
-            ctx.fillStyle = "#68452a";
+            ctx.fillStyle =
+                "#68452a";
 
             ctx.fillRect(
                 x - 7,
@@ -1174,9 +1505,8 @@ function drawResources() {
                 30
             );
 
-            /* copa */
-
-            ctx.fillStyle = "#174d28";
+            ctx.fillStyle =
+                "#174d28";
 
             ctx.beginPath();
 
@@ -1191,25 +1521,51 @@ function drawResources() {
             ctx.fill();
 
         }
-        else if (resource.type === "rock") {
+        else if (
+            resource.type === "rock"
+        ) {
 
-            ctx.fillStyle = "#888";
+            ctx.fillStyle =
+                "#888";
 
             ctx.beginPath();
 
-            ctx.moveTo(x - 20, y + 12);
-            ctx.lineTo(x - 12, y - 14);
-            ctx.lineTo(x + 12, y - 20);
-            ctx.lineTo(x + 23, y + 8);
-            ctx.lineTo(x + 8, y + 20);
+            ctx.moveTo(
+                x - 20,
+                y + 12
+            );
+
+            ctx.lineTo(
+                x - 12,
+                y - 14
+            );
+
+            ctx.lineTo(
+                x + 12,
+                y - 20
+            );
+
+            ctx.lineTo(
+                x + 23,
+                y + 8
+            );
+
+            ctx.lineTo(
+                x + 8,
+                y + 20
+            );
+
             ctx.closePath();
 
             ctx.fill();
 
         }
-        else if (resource.type === "copper") {
+        else if (
+            resource.type === "copper"
+        ) {
 
-            ctx.fillStyle = "#b86f3d";
+            ctx.fillStyle =
+                "#b86f3d";
 
             ctx.beginPath();
 
@@ -1223,7 +1579,8 @@ function drawResources() {
 
             ctx.fill();
 
-            ctx.fillStyle = "#e6a06a";
+            ctx.fillStyle =
+                "#e6a06a";
 
             ctx.beginPath();
 
@@ -1238,9 +1595,12 @@ function drawResources() {
             ctx.fill();
 
         }
-        else if (resource.type === "iron") {
+        else if (
+            resource.type === "iron"
+        ) {
 
-            ctx.fillStyle = "#555";
+            ctx.fillStyle =
+                "#555";
 
             ctx.beginPath();
 
@@ -1254,7 +1614,8 @@ function drawResources() {
 
             ctx.fill();
 
-            ctx.fillStyle = "#bbb";
+            ctx.fillStyle =
+                "#bbb";
 
             ctx.beginPath();
 
@@ -1272,7 +1633,7 @@ function drawResources() {
 }
 
 /* =========================================================
-   DIBUJAR ENEMIGOS
+   👹 DIBUJAR ENEMIGOS
    ========================================================= */
 
 function drawEnemies() {
@@ -1282,10 +1643,12 @@ function drawEnemies() {
         if (enemy.dead) continue;
 
         const x =
-            enemy.x - camera.x;
+            enemy.x -
+            camera.x;
 
         const y =
-            enemy.y - camera.y;
+            enemy.y -
+            camera.y;
 
         if (
             x < -60 ||
@@ -1293,8 +1656,6 @@ function drawEnemies() {
             x > screenWidth + 60 ||
             y > screenHeight + 60
         ) continue;
-
-        /* sombra */
 
         ctx.fillStyle =
             "rgba(0,0,0,.3)";
@@ -1313,24 +1674,34 @@ function drawEnemies() {
 
         ctx.fill();
 
-        /* cuerpo */
+        if (
+            enemy.hitFlash > 0
+        ) {
 
-        if (enemy.hitFlash > 0) {
+            ctx.fillStyle =
+                "#fff";
 
-            ctx.fillStyle = "#fff";
+        }
+        else if (
+            enemy.type === "wolf"
+        ) {
+
+            ctx.fillStyle =
+                "#777";
+
+        }
+        else if (
+            enemy.type === "boar"
+        ) {
+
+            ctx.fillStyle =
+                "#70452c";
 
         }
         else {
 
-            if (enemy.type === "wolf") {
-                ctx.fillStyle = "#777";
-            }
-            else if (enemy.type === "boar") {
-                ctx.fillStyle = "#70452c";
-            }
-            else {
-                ctx.fillStyle = "#529447";
-            }
+            ctx.fillStyle =
+                "#529447";
         }
 
         ctx.beginPath();
@@ -1345,9 +1716,8 @@ function drawEnemies() {
 
         ctx.fill();
 
-        /* ojos */
-
-        ctx.fillStyle = "#111";
+        ctx.fillStyle =
+            "#111";
 
         ctx.beginPath();
 
@@ -1369,14 +1739,14 @@ function drawEnemies() {
 
         ctx.fill();
 
-        /* barra vida */
-
         const barWidth = 45;
 
         const hpPercent =
-            enemy.hp / enemy.maxHp;
+            enemy.hp /
+            enemy.maxHp;
 
-        ctx.fillStyle = "#222";
+        ctx.fillStyle =
+            "#222";
 
         ctx.fillRect(
             x - barWidth / 2,
@@ -1385,7 +1755,8 @@ function drawEnemies() {
             5
         );
 
-        ctx.fillStyle = "#e53935";
+        ctx.fillStyle =
+            "#e53935";
 
         ctx.fillRect(
             x - barWidth / 2,
@@ -1394,13 +1765,14 @@ function drawEnemies() {
             5
         );
 
-        /* nombre */
+        ctx.font =
+            "11px Arial";
 
-        ctx.font = "11px Arial";
+        ctx.textAlign =
+            "center";
 
-        ctx.textAlign = "center";
-
-        ctx.fillStyle = "#fff";
+        ctx.fillStyle =
+            "#fff";
 
         ctx.fillText(
             enemy.name,
@@ -1411,18 +1783,18 @@ function drawEnemies() {
 }
 
 /* =========================================================
-   DIBUJAR PLAYER
+   👤 DIBUJAR PLAYER
    ========================================================= */
 
 function drawPlayer() {
 
     const x =
-        player.x - camera.x;
+        player.x -
+        camera.x;
 
     const y =
-        player.y - camera.y;
-
-    /* sombra */
+        player.y -
+        camera.y;
 
     ctx.fillStyle =
         "rgba(0,0,0,.35)";
@@ -1443,12 +1815,12 @@ function drawPlayer() {
 
     if (player.dead) {
 
-        ctx.globalAlpha = .45;
+        ctx.globalAlpha =
+            0.45;
     }
 
-    /* capa */
-
-    ctx.fillStyle = "#263238";
+    ctx.fillStyle =
+        "#263238";
 
     ctx.beginPath();
 
@@ -1462,9 +1834,8 @@ function drawPlayer() {
 
     ctx.fill();
 
-    /* cuerpo */
-
-    ctx.fillStyle = "#795548";
+    ctx.fillStyle =
+        "#795548";
 
     ctx.fillRect(
         x - 14,
@@ -1473,9 +1844,8 @@ function drawPlayer() {
         30
     );
 
-    /* cabeza */
-
-    ctx.fillStyle = "#d6a77a";
+    ctx.fillStyle =
+        "#d6a77a";
 
     ctx.beginPath();
 
@@ -1489,9 +1859,8 @@ function drawPlayer() {
 
     ctx.fill();
 
-    /* casco */
-
-    ctx.fillStyle = "#37474f";
+    ctx.fillStyle =
+        "#37474f";
 
     ctx.beginPath();
 
@@ -1505,9 +1874,8 @@ function drawPlayer() {
 
     ctx.fill();
 
-    /* ojos */
-
-    ctx.fillStyle = "#111";
+    ctx.fillStyle =
+        "#111";
 
     ctx.beginPath();
 
@@ -1546,7 +1914,8 @@ function drawPlayer() {
 
     ctx.rotate(angle);
 
-    ctx.fillStyle = "#ddd";
+    ctx.fillStyle =
+        "#ddd";
 
     ctx.fillRect(
         15,
@@ -1555,7 +1924,8 @@ function drawPlayer() {
         6
     );
 
-    ctx.fillStyle = "#795548";
+    ctx.fillStyle =
+        "#795548";
 
     ctx.fillRect(
         8,
@@ -1568,13 +1938,14 @@ function drawPlayer() {
 
     ctx.globalAlpha = 1;
 
-    /* nombre */
+    ctx.font =
+        "bold 12px Arial";
 
-    ctx.font = "bold 12px Arial";
+    ctx.textAlign =
+        "center";
 
-    ctx.textAlign = "center";
-
-    ctx.fillStyle = "#fff";
+    ctx.fillStyle =
+        "#fff";
 
     ctx.fillText(
         "Aventurero",
@@ -1582,9 +1953,8 @@ function drawPlayer() {
         y - 43
     );
 
-    /* barra vida */
-
-    ctx.fillStyle = "#222";
+    ctx.fillStyle =
+        "#222";
 
     ctx.fillRect(
         x - 25,
@@ -1593,18 +1963,25 @@ function drawPlayer() {
         5
     );
 
-    ctx.fillStyle = "#e53935";
+    ctx.fillStyle =
+        "#e53935";
 
     ctx.fillRect(
         x - 25,
         y - 38,
-        50 * (player.hp / player.maxHp),
+        50 *
+        clamp(
+            player.hp /
+            player.maxHp,
+            0,
+            1
+        ),
         5
     );
 }
 
 /* =========================================================
-   EFECTOS DE TEXTO
+   💬 TEXTOS
    ========================================================= */
 
 function updateFloatingTexts(dt) {
@@ -1620,25 +1997,39 @@ function updateFloatingTexts(dt) {
 
         effect.life -= dt;
 
-        effect.y -= 30 * dt;
+        effect.y -=
+            30 * dt;
 
-        if (effect.life <= 0) {
+        if (
+            effect.life <= 0
+        ) {
 
-            floatingTexts.splice(i, 1);
+            floatingTexts.splice(
+                i,
+                1
+            );
         }
     }
 }
 
 function drawFloatingTexts() {
 
-    ctx.textAlign = "center";
+    ctx.textAlign =
+        "center";
 
-    ctx.font = "bold 14px Arial";
+    ctx.font =
+        "bold 14px Arial";
 
-    for (const effect of floatingTexts) {
+    for (
+        const effect of floatingTexts
+    ) {
 
         ctx.globalAlpha =
-            clamp(effect.life, 0, 1);
+            clamp(
+                effect.life,
+                0,
+                1
+            );
 
         ctx.fillStyle =
             effect.color;
@@ -1660,91 +2051,146 @@ function drawFloatingTexts() {
 function updateHUD() {
 
     const hpBar =
-        document.getElementById("hpBar");
+        document.getElementById(
+            "hpBar"
+        );
 
     const xpBar =
-        document.getElementById("xpBar");
+        document.getElementById(
+            "xpBar"
+        );
 
     const hudText =
-        document.getElementById("hudText");
-
-    const gold =
-        document.getElementById("gold");
-
-    const wood =
-        document.getElementById("wood");
-
-    const stone =
-        document.getElementById("stone");
-
-    const copper =
-        document.getElementById("copper");
-
-    const iron =
-        document.getElementById("iron");
-
-    const fish =
-        document.getElementById("fish");
+        document.getElementById(
+            "hudText"
+        );
 
     hpBar.style.width =
-        `${clamp(player.hp / player.maxHp * 100, 0, 100)}%`;
+        `${clamp(
+            player.hp /
+            player.maxHp *
+            100,
+            0,
+            100
+        )}%`;
 
     xpBar.style.width =
-        `${clamp(player.xp / player.xpNeeded * 100, 0, 100)}%`;
+        `${clamp(
+            player.xp /
+            player.xpNeeded *
+            100,
+            0,
+            100
+        )}%`;
 
     hudText.textContent =
         `Nivel ${player.level} · ❤️ ${Math.ceil(player.hp)}/${player.maxHp} · ⭐ ${player.xp}/${player.xpNeeded}`;
 
-    gold.textContent =
+    document.getElementById(
+        "gold"
+    ).textContent =
         inventory.gold;
 
-    wood.textContent =
+    document.getElementById(
+        "wood"
+    ).textContent =
         inventory.wood;
 
-    stone.textContent =
+    document.getElementById(
+        "stone"
+    ).textContent =
         inventory.stone;
 
-    copper.textContent =
+    document.getElementById(
+        "copper"
+    ).textContent =
         inventory.copper;
 
-    iron.textContent =
+    document.getElementById(
+        "iron"
+    ).textContent =
         inventory.iron;
 
-    fish.textContent =
+    document.getElementById(
+        "fish"
+    ).textContent =
         inventory.fish;
 }
 
 /* =========================================================
-   GUARDADO
+   💾 GUARDADO SEGURO
    ========================================================= */
 
 function saveGame() {
+
+    /*
+       MUY IMPORTANTE:
+
+       Si el jugador está muerto o tiene 0 HP,
+       NO guardamos esos valores.
+
+       Así una recarga nunca deja al personaje
+       muerto con 0 de vida.
+    */
+
+    if (
+        player.dead ||
+        player.hp <= 0
+    ) {
+
+        return;
+    }
 
     const data = {
 
         player: {
 
             x: player.x,
+
             y: player.y,
 
             level: player.level,
 
             xp: player.xp,
 
-            xpNeeded: player.xpNeeded,
+            xpNeeded:
+                player.xpNeeded,
 
             hp: player.hp,
 
-            maxHp: player.maxHp,
+            maxHp:
+                player.maxHp,
 
-            mana: player.mana,
+            mana:
+                player.mana,
 
-            maxMana: player.maxMana,
+            maxMana:
+                player.maxMana,
 
-            damage: player.damage
+            damage:
+                player.damage
         },
 
-        inventory
+        inventory: {
+
+            gold:
+                inventory.gold,
+
+            wood:
+                inventory.wood,
+
+            stone:
+                inventory.stone,
+
+            copper:
+                inventory.copper,
+
+            iron:
+                inventory.iron,
+
+            fish:
+                inventory.fish
+        }
     };
 
     try {
@@ -1762,6 +2208,10 @@ function saveGame() {
         );
     }
 }
+
+/* =========================================================
+   📂 CARGAR PARTIDA
+   ========================================================= */
 
 function loadGame() {
 
@@ -1793,28 +2243,80 @@ function loadGame() {
             );
         }
 
+        /*
+           SEGURIDAD EXTRA:
+
+           Si por alguna razón una partida vieja
+           tiene 0 HP, la recuperamos.
+        */
+
+        if (
+            !Number.isFinite(player.hp) ||
+            player.hp <= 0
+        ) {
+
+            player.hp =
+                player.maxHp;
+        }
+
+        if (
+            !Number.isFinite(player.mana) ||
+            player.mana <= 0
+        ) {
+
+            player.mana =
+                player.maxMana;
+        }
+
+        player.dead = false;
+
+        player.respawnTimer = 0;
+
     } catch (error) {
 
         console.log(
             "Error cargando partida",
             error
         );
+
+        /*
+           Si el guardado está corrupto,
+           empezamos con una partida segura.
+        */
+
+        player.x =
+            respawnPoint.x;
+
+        player.y =
+            respawnPoint.y;
+
+        player.hp =
+            player.maxHp;
+
+        player.mana =
+            player.maxMana;
+
+        player.dead = false;
     }
 }
 
 loadGame();
 
 /* =========================================================
-   MENSAJE TIMER
+   MENSAJES
    ========================================================= */
 
 function updateMessage(dt) {
 
-    if (messageTimer <= 0) return;
+    if (
+        messageTimer <= 0
+    ) return;
 
     messageTimer -= dt;
 
-    if (messageTimer <= 0) {
+    if (
+        messageTimer <= 0
+    ) {
 
         document.getElementById(
             "message"
@@ -1828,9 +2330,9 @@ function updateMessage(dt) {
 
 function update(dt) {
 
-    gameTime += dt;
-
-    if (player.attackCooldown > 0) {
+    if (
+        player.attackCooldown > 0
+    ) {
 
         player.attackCooldown -= dt;
     }
@@ -1840,6 +2342,8 @@ function update(dt) {
     updateEnemies(dt);
 
     updateRespawn(dt);
+
+    updateResources(dt);
 
     updateFloatingTexts(dt);
 
@@ -1881,19 +2385,29 @@ function draw() {
 function gameLoop(now) {
 
     let dt =
-        (now - lastTime) / 1000;
+        (now - lastTime) /
+        1000;
 
     lastTime = now;
 
-    /* Evita saltos si el teléfono se bloquea */
+    /*
+       Evitar saltos grandes cuando
+       el navegador se pausa.
+    */
 
-    dt = Math.min(dt, 0.05);
+    dt =
+        Math.min(
+            dt,
+            0.05
+        );
 
     update(dt);
 
     draw();
 
-    requestAnimationFrame(gameLoop);
+    requestAnimationFrame(
+        gameLoop
+    );
 }
 
 /* =========================================================
@@ -1910,12 +2424,15 @@ setInterval(() => {
    INICIO
    ========================================================= */
 
-showMessage(
-    "⚔️ Bienvenido a Reinos de Ceniza"
-);
-
 updateCamera();
 
 updateHUD();
 
-requestAnimationFrame(gameLoop);
+showMessage(
+    "⚔️ Bienvenido a Reinos de Ceniza"
+);
+
+requestAnimationFrame(
+    gameLoop
+);
+```
