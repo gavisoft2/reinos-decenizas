@@ -1,12 +1,27 @@
-const canvas = document.getElementById("world");
+// ============================================================
+// REINOS DE CENIZA - GAME.JS
+// Versión 0.4 - IA DE MOBS + COMBATE + RESPAWN
+// ============================================================
+
+const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-document.body.style.margin = "0";
-document.body.style.padding = "0";
-document.body.style.overflow = "hidden";
-document.body.style.background = "#111";
-document.body.style.touchAction = "none";
-document.body.style.userSelect = "none";
+// ============================================================
+// AJUSTE DEL CANVAS
+// ============================================================
+
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+
+window.addEventListener("resize", resizeCanvas);
+resizeCanvas();
+
+
+// ============================================================
+// ESTADO DEL JUGADOR
+// ============================================================
 
 const state = {
     level: 1,
@@ -33,33 +48,68 @@ const state = {
     dead: false
 };
 
+
+// ============================================================
+// JUGADOR
+// ============================================================
+
 const player = {
     x: 500,
     y: 350,
+
     speed: 3.2,
+
     r: 16
 };
+
+
+// ============================================================
+// MUNDO
+// ============================================================
 
 const world = {
     w: 1800,
     h: 1200
 };
 
+
+// ============================================================
+// CÁMARA
+// ============================================================
+
 const camera = {
     zoom: 0.72
 };
 
+
+// ============================================================
+// TECLADO
+// ============================================================
+
 const keys = {};
 
-let last = 0;
+window.addEventListener("keydown", e => {
+    keys[e.key.toLowerCase()] = true;
+
+    if (e.key === " ") {
+        e.preventDefault();
+        attackWithSkill(skills[0]);
+    }
+});
+
+window.addEventListener("keyup", e => {
+    keys[e.key.toLowerCase()] = false;
+});
 
 
-/* =====================================================
-   JOYSTICK
-===================================================== */
+// ============================================================
+// JOYSTICK
+// ============================================================
 
 const joystick = {
+
     active: false,
+
     id: null,
 
     centerX: 0,
@@ -75,941 +125,441 @@ const joystick = {
 };
 
 
-/* =====================================================
-   MUNDO
-===================================================== */
+// ============================================================
+// CREAR JOYSTICK
+// ============================================================
 
-const trees = [
+const joystickBase = document.createElement("div");
 
-    { x: 250, y: 260 },
-    { x: 340, y: 180 },
-    { x: 470, y: 250 },
+joystickBase.id = "joystickBase";
 
-    { x: 1400, y: 250 },
-    { x: 1510, y: 340 },
-    { x: 1300, y: 430 },
+joystickBase.style.position = "fixed";
+joystickBase.style.left = "25px";
+joystickBase.style.bottom = "25px";
 
-    { x: 280, y: 850 },
-    { x: 410, y: 930 },
-    { x: 1500, y: 850 }
+joystickBase.style.width = "120px";
+joystickBase.style.height = "120px";
 
-];
+joystickBase.style.borderRadius = "50%";
+
+joystickBase.style.background = "rgba(255,255,255,0.12)";
+joystickBase.style.border = "2px solid rgba(255,255,255,0.25)";
+
+joystickBase.style.zIndex = "1000";
+
+joystickBase.style.touchAction = "none";
+
+document.body.appendChild(joystickBase);
 
 
-const rocks = [
+// ============================================================
+// JOYSTICK CONTROL
+// ============================================================
 
-    {
-        x: 720,
-        y: 220,
-        type: "copper"
-    },
+const joystickKnob = document.createElement("div");
 
-    {
-        x: 820,
-        y: 300,
-        type: "iron"
-    },
+joystickKnob.style.position = "absolute";
 
-    {
-        x: 950,
-        y: 180,
-        type: "stone"
-    },
+joystickKnob.style.width = "55px";
+joystickKnob.style.height = "55px";
 
-    {
-        x: 1080,
-        y: 270,
-        type: "copper"
-    },
+joystickKnob.style.left = "32px";
+joystickKnob.style.top = "32px";
 
-    {
-        x: 1200,
-        y: 190,
-        type: "iron"
+joystickKnob.style.borderRadius = "50%";
+
+joystickKnob.style.background = "rgba(255,255,255,0.35)";
+
+joystickKnob.style.border = "2px solid rgba(255,255,255,0.5)";
+
+joystickKnob.style.pointerEvents = "none";
+
+joystickBase.appendChild(joystickKnob);
+
+
+function resetJoystick() {
+
+    joystick.active = false;
+
+    joystick.dx = 0;
+    joystick.dy = 0;
+
+    joystickKnob.style.transform = "translate(0px,0px)";
+}
+
+
+function updateJoystick(clientX, clientY) {
+
+    let dx = clientX - joystick.centerX;
+    let dy = clientY - joystick.centerY;
+
+    const distance = Math.hypot(dx, dy);
+
+    if (distance > joystick.maxDistance) {
+
+        dx = dx / distance * joystick.maxDistance;
+        dy = dy / distance * joystick.maxDistance;
+
     }
 
-];
+    joystick.x = dx;
+    joystick.y = dy;
+
+    joystick.dx = dx / joystick.maxDistance;
+    joystick.dy = dy / joystick.maxDistance;
+
+    joystickKnob.style.transform =
+        `translate(${dx}px, ${dy}px)`;
+}
 
 
-const fishSpots = [
+joystickBase.addEventListener("pointerdown", e => {
 
-    {
-        x: 350,
-        y: 520
-    },
+    joystick.active = true;
 
-    {
-        x: 500,
-        y: 540
-    },
+    joystick.id = e.pointerId;
 
-    {
-        x: 650,
-        y: 500
-    },
+    const rect = joystickBase.getBoundingClientRect();
 
-    {
-        x: 1420,
-        y: 620
-    }
+    joystick.centerX = rect.left + rect.width / 2;
+    joystick.centerY = rect.top + rect.height / 2;
 
-];
+    joystickBase.setPointerCapture(e.pointerId);
 
+    updateJoystick(e.clientX, e.clientY);
+});
+
+
+joystickBase.addEventListener("pointermove", e => {
+
+    if (!joystick.active) return;
+
+    if (e.pointerId !== joystick.id) return;
+
+    updateJoystick(e.clientX, e.clientY);
+});
+
+
+joystickBase.addEventListener("pointerup", resetJoystick);
+
+joystickBase.addEventListener("pointercancel", resetJoystick);
+
+
+// ============================================================
+// MENSAJES
+// ============================================================
+
+let messageText = "";
+let messageTimer = 0;
+
+
+function msg(text) {
+
+    messageText = text;
+
+    messageTimer = 1800;
+}
+
+
+// ============================================================
+// MOBS
+// ============================================================
 
 const mobs = [
 
     {
+        name: "Lobo",
+
         x: 900,
         y: 650,
+
+        spawnX: 900,
+        spawnY: 650,
+
         hp: 30,
-        max: 30,
-        name: "Lobo"
+        maxHp: 30,
+
+        speed: 1.45,
+
+        aggroRange: 230,
+
+        attackRange: 42,
+
+        attackDamage: 4,
+
+        attackCooldown: 1100,
+
+        lastAttack: 0,
+
+        respawnAt: 0
     },
 
+
     {
+        name: "Jabalí",
+
         x: 1040,
         y: 760,
+
+        spawnX: 1040,
+        spawnY: 760,
+
         hp: 45,
-        max: 45,
-        name: "Jabalí"
+        maxHp: 45,
+
+        speed: 1.05,
+
+        aggroRange: 230,
+
+        attackRange: 44,
+
+        attackDamage: 7,
+
+        attackCooldown: 1400,
+
+        lastAttack: 0,
+
+        respawnAt: 0
     },
 
+
     {
+        name: "Goblin",
+
         x: 1220,
         y: 680,
+
+        spawnX: 1220,
+        spawnY: 680,
+
         hp: 60,
-        max: 60,
-        name: "Goblin"
+        maxHp: 60,
+
+        speed: 0.9,
+
+        aggroRange: 250,
+
+        attackRange: 46,
+
+        attackDamage: 9,
+
+        attackCooldown: 1600,
+
+        lastAttack: 0,
+
+        respawnAt: 0
     }
 
 ];
 
 
-/* =====================================================
-   HABILIDADES
-===================================================== */
+// ============================================================
+// HABILIDADES
+// ============================================================
 
 const skills = [
 
     {
         id: "golpe",
+
         name: "Golpe Poderoso",
+
         icon: "⚔️",
+
         level: 1,
+
         damage: 25,
+
         mana: 0,
+
         cooldown: 700,
+
         last: 0
     },
+
 
     {
         id: "fuego",
+
         name: "Golpe de Fuego",
+
         icon: "🔥",
+
         level: 3,
+
         damage: 45,
+
         mana: 10,
+
         cooldown: 1800,
+
         last: 0
     },
+
 
     {
         id: "escudo",
+
         name: "Escudo",
+
         icon: "🛡️",
+
         level: 5,
+
         damage: 0,
+
         mana: 15,
+
         cooldown: 8000,
+
         last: 0
     },
+
 
     {
         id: "rapido",
+
         name: "Ataque Rápido",
+
         icon: "💨",
+
         level: 8,
+
         damage: 65,
+
         mana: 20,
+
         cooldown: 3000,
+
         last: 0
     },
+
 
     {
         id: "torbellino",
+
         name: "Torbellino",
+
         icon: "🌪️",
+
         level: 15,
+
         damage: 90,
+
         mana: 30,
+
         cooldown: 5000,
+
         last: 0
     },
 
+
     {
         id: "ejecucion",
+
         name: "Ejecución",
+
         icon: "☠️",
+
         level: 20,
+
         damage: 150,
+
         mana: 40,
+
         cooldown: 10000,
+
         last: 0
     }
 
 ];
 
 
-/* =====================================================
-   RESIZE
-===================================================== */
+// ============================================================
+// ENCONTRAR MOB CERCANO
+// ============================================================
 
-function resize() {
+function getNearestMob(maxDistance = 130) {
 
-    const dpr =
-        Math.min(
-            window.devicePixelRatio || 1,
-            2
+    let target = null;
+
+    let best = maxDistance;
+
+    for (const mob of mobs) {
+
+        if (mob.hp <= 0) continue;
+
+        const distance = Math.hypot(
+            player.x - mob.x,
+            player.y - mob.y
         );
 
-    canvas.width =
-        window.innerWidth * dpr;
+        if (distance < best) {
 
-    canvas.height =
-        window.innerHeight * dpr;
+            best = distance;
 
-    canvas.style.width =
-        window.innerWidth + "px";
-
-    canvas.style.height =
-        window.innerHeight + "px";
-
-    ctx.setTransform(
-        dpr,
-        0,
-        0,
-        dpr,
-        0,
-        0
-    );
-
-    createJoystick();
-}
-
-
-window.addEventListener(
-    "resize",
-    resize
-);
-
-
-/* =====================================================
-   MENSAJE
-===================================================== */
-
-function msg(text) {
-
-    const message =
-        document.getElementById(
-            "message"
-        );
-
-    if (message) {
-
-        message.textContent =
-            text;
-    }
-}
-
-
-/* =====================================================
-   JOYSTICK
-===================================================== */
-
-function createJoystick() {
-
-    const old =
-        document.getElementById(
-            "virtualJoystick"
-        );
-
-    if (old) {
-
-        old.remove();
-    }
-
-
-    const base =
-        document.createElement(
-            "div"
-        );
-
-    base.id =
-        "virtualJoystick";
-
-
-    const size =
-        window.innerWidth < 500
-        ? 130
-        : 150;
-
-
-    base.style.position =
-        "fixed";
-
-    base.style.left =
-        "22px";
-
-    base.style.bottom =
-        "22px";
-
-    base.style.width =
-        size + "px";
-
-    base.style.height =
-        size + "px";
-
-    base.style.borderRadius =
-        "50%";
-
-    base.style.background =
-        "rgba(20,20,25,0.60)";
-
-    base.style.border =
-        "3px solid rgba(255,255,255,0.35)";
-
-    base.style.boxShadow =
-        "0 5px 20px rgba(0,0,0,0.5)";
-
-    base.style.zIndex =
-        "9999";
-
-    base.style.touchAction =
-        "none";
-
-    base.style.display =
-        "flex";
-
-    base.style.alignItems =
-        "center";
-
-    base.style.justifyContent =
-        "center";
-
-
-    const knob =
-        document.createElement(
-            "div"
-        );
-
-    knob.id =
-        "joystickKnob";
-
-
-    knob.style.width =
-        "58px";
-
-    knob.style.height =
-        "58px";
-
-    knob.style.borderRadius =
-        "50%";
-
-    knob.style.background =
-        "rgba(255,255,255,0.82)";
-
-    knob.style.border =
-        "3px solid rgba(255,255,255,0.95)";
-
-    knob.style.boxShadow =
-        "0 3px 12px rgba(0,0,0,0.5)";
-
-    knob.style.pointerEvents =
-        "none";
-
-
-    base.appendChild(
-        knob
-    );
-
-    document.body.appendChild(
-        base
-    );
-
-
-    base.addEventListener(
-        "pointerdown",
-        joystickStart
-    );
-
-    base.addEventListener(
-        "pointermove",
-        joystickMove
-    );
-
-    base.addEventListener(
-        "pointerup",
-        joystickEnd
-    );
-
-    base.addEventListener(
-        "pointercancel",
-        joystickEnd
-    );
-}
-
-
-function joystickStart(e) {
-
-    e.preventDefault();
-
-    joystick.active =
-        true;
-
-    joystick.id =
-        e.pointerId;
-
-
-    const rect =
-        e.currentTarget.getBoundingClientRect();
-
-
-    joystick.centerX =
-        rect.left +
-        rect.width / 2;
-
-    joystick.centerY =
-        rect.top +
-        rect.height / 2;
-
-
-    e.currentTarget.setPointerCapture(
-        e.pointerId
-    );
-
-
-    joystickMove(e);
-}
-
-
-function joystickMove(e) {
-
-    if (
-        !joystick.active ||
-        e.pointerId !== joystick.id
-    ) {
-
-        return;
-    }
-
-
-    e.preventDefault();
-
-
-    let dx =
-        e.clientX -
-        joystick.centerX;
-
-    let dy =
-        e.clientY -
-        joystick.centerY;
-
-
-    const distance =
-        Math.hypot(
-            dx,
-            dy
-        );
-
-
-    if (
-        distance >
-        joystick.maxDistance
-    ) {
-
-        dx =
-            dx /
-            distance *
-            joystick.maxDistance;
-
-        dy =
-            dy /
-            distance *
-            joystick.maxDistance;
-    }
-
-
-    joystick.dx =
-        dx /
-        joystick.maxDistance;
-
-    joystick.dy =
-        dy /
-        joystick.maxDistance;
-
-
-    joystick.x =
-        joystick.centerX +
-        dx;
-
-    joystick.y =
-        joystick.centerY +
-        dy;
-
-
-    const knob =
-        document.getElementById(
-            "joystickKnob"
-        );
-
-
-    if (knob) {
-
-        knob.style.transform =
-            `translate(${dx}px, ${dy}px)`;
-    }
-}
-
-
-function joystickEnd(e) {
-
-    if (
-        e.pointerId !==
-        joystick.id
-    ) {
-
-        return;
-    }
-
-
-    joystick.active =
-        false;
-
-    joystick.dx =
-        0;
-
-    joystick.dy =
-        0;
-
-
-    const knob =
-        document.getElementById(
-            "joystickKnob"
-        );
-
-
-    if (knob) {
-
-        knob.style.transform =
-            "translate(0px, 0px)";
-    }
-}
-
-
-/* =====================================================
-   TECLADO
-===================================================== */
-
-window.addEventListener(
-    "keydown",
-    e => {
-
-        keys[
-            e.key.toLowerCase()
-        ] = true;
-
-        keys[
-            e.key
-        ] = true;
-
-
-        if (
-            e.key === " " ||
-            e.key.toLowerCase() === "e"
-        ) {
-
-            interact();
-
-            e.preventDefault();
+            target = mob;
         }
     }
-);
-
-
-window.addEventListener(
-    "keyup",
-    e => {
-
-        keys[
-            e.key.toLowerCase()
-        ] = false;
-
-        keys[
-            e.key
-        ] = false;
-    }
-);
-
-
-/* =====================================================
-   DISTANCIA
-===================================================== */
-
-function near(
-    a,
-    b,
-    distance = 45
-) {
-
-    return Math.hypot(
-        a.x - b.x,
-        a.y - b.y
-    ) < distance;
-}
-
-
-/* =====================================================
-   EXPERIENCIA
-===================================================== */
-
-function gainXP(amount) {
-
-    state.xp +=
-        amount;
-
-
-    while (
-        state.xp >=
-        state.xpNext
-    ) {
-
-        state.xp -=
-            state.xpNext;
-
-
-        state.level++;
-
-
-        state.xpNext =
-            Math.floor(
-                state.xpNext *
-                1.35
-            );
-
-
-        state.maxHp +=
-            10;
-
-        state.hp =
-            state.maxHp;
-
-
-        state.maxMana +=
-            5;
-
-        state.mana =
-            state.maxMana;
-
-
-        state.attack +=
-            3;
-
-        state.defense +=
-            1;
-
-
-        msg(
-            "🎉 ¡SUBISTE A NIVEL " +
-            state.level +
-            "!"
-        );
-
-
-        const unlocked =
-            skills.filter(
-                skill =>
-                    skill.level ===
-                    state.level
-            );
-
-
-        if (
-            unlocked.length
-        ) {
-
-            msg(
-                "🔓 Nueva habilidad: " +
-                unlocked[0].icon +
-                " " +
-                unlocked[0].name
-            );
-        }
-    }
-}
-
-
-/* =====================================================
-   RECURSOS
-===================================================== */
-
-function interact() {
-
-    if (
-        state.dead
-    ) {
-
-        return;
-    }
-
-
-    for (
-        const tree of trees
-    ) {
-
-        if (
-            near(
-                player,
-                tree,
-                45
-            )
-        ) {
-
-            state.wood++;
-
-            msg(
-                "🪓 Talaste un árbol: +1 madera"
-            );
-
-            return;
-        }
-    }
-
-
-    for (
-        const rock of rocks
-    ) {
-
-        if (
-            near(
-                player,
-                rock,
-                45
-            )
-        ) {
-
-            if (
-                rock.type ===
-                "copper"
-            ) {
-
-                state.copper++;
-            }
-
-            else if (
-                rock.type ===
-                "iron"
-            ) {
-
-                state.iron++;
-            }
-
-            else {
-
-                state.stone++;
-            }
-
-
-            const resourceName =
-                rock.type === "copper"
-                ? "cobre"
-                : rock.type === "iron"
-                ? "hierro"
-                : "piedra";
-
-
-            msg(
-                "⛏️ Minería: +1 " +
-                resourceName
-            );
-
-            return;
-        }
-    }
-
-
-    for (
-        const fish of fishSpots
-    ) {
-
-        if (
-            near(
-                player,
-                fish,
-                50
-            )
-        ) {
-
-            state.fish++;
-
-            msg(
-                "🎣 Pescaste: +1 pez"
-            );
-
-            return;
-        }
-    }
-}
-
-
-/* =====================================================
-   ENEMIGO CERCANO
-===================================================== */
-
-function getNearestMob(
-    maxDistance = 130
-) {
-
-    let target =
-        null;
-
-    let best =
-        maxDistance;
-
-
-    for (
-        const mob of mobs
-    ) {
-
-        if (
-            mob.hp <= 0
-        ) {
-
-            continue;
-        }
-
-
-        const distance =
-            Math.hypot(
-                player.x -
-                mob.x,
-
-                player.y -
-                mob.y
-            );
-
-
-        if (
-            distance <
-            best
-        ) {
-
-            best =
-                distance;
-
-            target =
-                mob;
-        }
-    }
-
 
     return target;
 }
 
 
-/* =====================================================
-   ATAQUE
-===================================================== */
+// ============================================================
+// ATAQUE DEL JUGADOR
+// ============================================================
 
-function attackWithSkill(
-    skill
-) {
+function attackWithSkill(skill) {
 
-    if (
-        state.dead
-    ) {
+    if (state.dead) return;
 
-        return;
-    }
+    const now = performance.now();
 
+    if (now - skill.last < skill.cooldown) return;
 
-    const now =
-        performance.now();
+    if (state.level < skill.level) {
 
-
-    if (
-        now -
-        skill.last <
-        skill.cooldown
-    ) {
+        msg("🔒 Se desbloquea en nivel " + skill.level);
 
         return;
     }
 
 
-    if (
-        state.level <
-        skill.level
-    ) {
+    if (state.mana < skill.mana) {
 
-        msg(
-            "🔒 Se desbloquea en nivel " +
-            skill.level
+        msg("💧 No tienes suficiente maná");
+
+        return;
+    }
+
+
+    skill.last = now;
+
+    state.mana -= skill.mana;
+
+
+    // ESCUDO
+
+    if (skill.id === "escudo") {
+
+        state.hp = Math.min(
+            state.maxHp,
+            state.hp + 25
         );
 
-        return;
-    }
-
-
-    if (
-        state.mana <
-        skill.mana
-    ) {
-
-        msg(
-            "💧 No tienes suficiente maná"
-        );
+        msg("🛡️ Escudo activado");
 
         return;
     }
 
 
-    skill.last =
-        now;
-
-
-    state.mana -=
-        skill.mana;
-
-
-    if (
-        skill.id ===
-        "escudo"
-    ) {
-
-        state.hp =
-            Math.min(
-                state.maxHp,
-                state.hp + 25
-            );
-
-
-        msg(
-            "🛡️ Escudo activado"
-        );
-
-        return;
-    }
-
-
-    const target =
-        getNearestMob();
+    const target = getNearestMob();
 
 
     if (!target) {
 
-        msg(
-            "🎯 No hay enemigo cerca"
-        );
+        msg("🎯 No hay enemigo cerca");
 
         return;
     }
@@ -1020,8 +570,7 @@ function attackWithSkill(
         state.attack;
 
 
-    target.hp -=
-        damage;
+    target.hp -= damage;
 
 
     msg(
@@ -1034,22 +583,21 @@ function attackWithSkill(
     );
 
 
-    if (
-        target.hp <=
-        0
-    ) {
+    // MOB MUERTO
 
-        target.hp =
-            0;
+    if (target.hp <= 0) {
+
+        target.hp = 0;
+
+        target.respawnAt =
+            performance.now() + 15000;
+
+        target.lastAttack = 0;
 
 
-        state.gold +=
-            10;
+        state.gold += 10;
 
-
-        gainXP(
-            35
-        );
+        gainXP(35);
 
 
         msg(
@@ -1057,485 +605,497 @@ function attackWithSkill(
             target.name +
             " derrotado: +10 oro"
         );
-
-
-        setTimeout(
-            () => {
-
-                target.hp =
-                    target.maxHp;
-
-            },
-            5000
-        );
     }
 }
 
 
-/* =====================================================
-   INTERFAZ DE COMBATE
-===================================================== */
+// ============================================================
+// IA DE LOS MOBS
+// ============================================================
 
-function createCombatUI() {
+function updateMobs(dt, now) {
 
-    const old =
-        document.getElementById(
-            "combatUI"
-        );
+    for (const mob of mobs) {
 
 
-    if (old) {
+        // ====================================================
+        // MOB MUERTO
+        // ====================================================
 
-        old.remove();
-    }
+        if (mob.hp <= 0) {
 
+            if (
+                mob.respawnAt > 0 &&
+                now >= mob.respawnAt
+            ) {
 
-    const ui =
-        document.createElement(
-            "div"
-        );
+                // VIDA COMPLETA
 
+                mob.hp = mob.maxHp;
 
-    ui.id =
-        "combatUI";
+                // VOLVER AL SPAWN
 
+                mob.x = mob.spawnX;
 
-    ui.style.position =
-        "fixed";
+                mob.y = mob.spawnY;
 
-    ui.style.right =
-        "12px";
+                mob.lastAttack = 0;
 
-    ui.style.bottom =
-        "18px";
+                mob.respawnAt = 0;
 
-    ui.style.zIndex =
-        "9999";
-
-    ui.style.display =
-        "flex";
-
-    ui.style.flexDirection =
-        "column";
-
-    ui.style.alignItems =
-        "flex-end";
-
-    ui.style.gap =
-        "7px";
-
-    ui.style.maxWidth =
-        "48vw";
-
-
-    /* ATAQUE */
-
-    const attack =
-        document.createElement(
-            "button"
-        );
-
-
-    attack.textContent =
-        "⚔️";
-
-
-    attack.style.width =
-        "76px";
-
-    attack.style.height =
-        "76px";
-
-    attack.style.borderRadius =
-        "50%";
-
-    attack.style.fontSize =
-        "35px";
-
-    attack.style.border =
-        "3px solid white";
-
-    attack.style.background =
-        "rgba(190,40,40,0.88)";
-
-    attack.style.color =
-        "white";
-
-    attack.style.boxShadow =
-        "0 4px 12px rgba(0,0,0,0.5)";
-
-    attack.style.touchAction =
-        "none";
-
-
-    attack.addEventListener(
-        "pointerdown",
-        e => {
-
-            e.preventDefault();
-
-            attackWithSkill(
-                skills[0]
-            );
-        }
-    );
-
-
-    ui.appendChild(
-        attack
-    );
-
-
-    /* HABILIDADES */
-
-    const skillRow =
-        document.createElement(
-            "div"
-        );
-
-
-    skillRow.style.display =
-        "flex";
-
-    skillRow.style.gap =
-        "6px";
-
-    skillRow.style.flexWrap =
-        "wrap";
-
-    skillRow.style.justifyContent =
-        "flex-end";
-
-
-    for (
-        let i = 1;
-        i < skills.length;
-        i++
-    ) {
-
-        const skill =
-            skills[i];
-
-
-        const button =
-            document.createElement(
-                "button"
-            );
-
-
-        button.textContent =
-            skill.icon;
-
-
-        button.style.width =
-            "50px";
-
-        button.style.height =
-            "50px";
-
-        button.style.borderRadius =
-            "50%";
-
-        button.style.fontSize =
-            "23px";
-
-        button.style.border =
-            "2px solid white";
-
-        button.style.background =
-            "rgba(25,25,35,0.85)";
-
-        button.style.color =
-            "white";
-
-        button.style.touchAction =
-            "none";
-
-
-        button.addEventListener(
-            "pointerdown",
-            e => {
-
-                e.preventDefault();
-
-                attackWithSkill(
-                    skill
+                msg(
+                    "🔄 " +
+                    mob.name +
+                    " ha reaparecido con toda su vida"
                 );
             }
-        );
+
+            continue;
+        }
 
 
-        skillRow.appendChild(
-            button
-        );
+        if (state.dead) continue;
+
+
+        // ====================================================
+        // DISTANCIA AL JUGADOR
+        // ====================================================
+
+        const dx =
+            player.x - mob.x;
+
+        const dy =
+            player.y - mob.y;
+
+        const distance =
+            Math.hypot(dx, dy);
+
+
+        // ====================================================
+        // DISTANCIA AL PUNTO DE SPAWN
+        // ====================================================
+
+        const spawnDx =
+            mob.spawnX - mob.x;
+
+        const spawnDy =
+            mob.spawnY - mob.y;
+
+        const spawnDistance =
+            Math.hypot(
+                spawnDx,
+                spawnDy
+            );
+
+
+        // ====================================================
+        // PERSEGUIR AL JUGADOR
+        // ====================================================
+
+        if (
+            distance <= mob.aggroRange &&
+            distance > mob.attackRange
+        ) {
+
+            const directionX =
+                dx / distance;
+
+            const directionY =
+                dy / distance;
+
+
+            mob.x +=
+                directionX *
+                mob.speed *
+                dt / 16;
+
+
+            mob.y +=
+                directionY *
+                mob.speed *
+                dt / 16;
+        }
+
+
+        // ====================================================
+        // ATACAR AL JUGADOR
+        // ====================================================
+
+        if (
+            distance <= mob.attackRange
+        ) {
+
+            if (
+                now - mob.lastAttack >=
+                mob.attackCooldown
+            ) {
+
+                mob.lastAttack = now;
+
+
+                // DEFENSA DEL JUGADOR
+
+                const damage =
+                    Math.max(
+                        1,
+                        mob.attackDamage -
+                        state.defense
+                    );
+
+
+                state.hp -= damage;
+
+
+                msg(
+                    "💥 " +
+                    mob.name +
+                    " te golpeó (-" +
+                    damage +
+                    " HP)"
+                );
+
+
+                // MUERTE
+
+                if (state.hp <= 0) {
+
+                    playerDeath();
+                }
+            }
+        }
+
+
+        // ====================================================
+        // VOLVER A SU ZONA
+        // ====================================================
+
+        if (
+            distance > mob.aggroRange &&
+            spawnDistance > 280
+        ) {
+
+            const returnX =
+                spawnDx /
+                spawnDistance;
+
+            const returnY =
+                spawnDy /
+                spawnDistance;
+
+
+            mob.x +=
+                returnX *
+                mob.speed *
+                dt / 16;
+
+
+            mob.y +=
+                returnY *
+                mob.speed *
+                dt / 16;
+        }
+
+
+        // ====================================================
+        // LIMITAR AL MAPA
+        // ====================================================
+
+        mob.x =
+            Math.max(
+                30,
+                Math.min(
+                    world.w - 30,
+                    mob.x
+                )
+            );
+
+
+        mob.y =
+            Math.max(
+                30,
+                Math.min(
+                    world.h - 30,
+                    mob.y
+                )
+            );
     }
-
-
-    ui.appendChild(
-        skillRow
-    );
-
-
-    document.body.appendChild(
-        ui
-    );
 }
 
 
-/* =====================================================
-   HUD EXTRA
-===================================================== */
+// ============================================================
+// MUERTE DEL JUGADOR
+// ============================================================
 
-function createExtraHUD() {
+function playerDeath() {
 
-    const old =
-        document.getElementById(
-            "extraHUD"
-        );
+    if (state.dead) return;
 
 
-    if (old) {
+    state.dead = true;
 
-        old.remove();
-    }
+    state.hp = 0;
 
-
-    const hud =
-        document.createElement(
-            "div"
-        );
+    resetJoystick();
 
 
-    hud.id =
-        "extraHUD";
-
-
-    hud.style.position =
-        "fixed";
-
-    hud.style.left =
-        "50%";
-
-    hud.style.top =
-        "70px";
-
-    hud.style.transform =
-        "translateX(-50%)";
-
-    hud.style.zIndex =
-        "9998";
-
-    hud.style.width =
-        "180px";
-
-    hud.style.pointerEvents =
-        "none";
-
-
-    /* HP */
-
-    const hpBack =
-        document.createElement(
-            "div"
-        );
-
-
-    hpBack.style.height =
-        "12px";
-
-    hpBack.style.background =
-        "rgba(0,0,0,0.65)";
-
-    hpBack.style.border =
-        "1px solid white";
-
-    hpBack.style.borderRadius =
-        "8px";
-
-    hpBack.style.overflow =
-        "hidden";
-
-
-    const hpBar =
-        document.createElement(
-            "div"
-        );
-
-
-    hpBar.id =
-        "customHP";
-
-
-    hpBar.style.height =
-        "100%";
-
-    hpBar.style.width =
-        "100%";
-
-    hpBar.style.background =
-        "#d83232";
-
-
-    hpBack.appendChild(
-        hpBar
+    msg(
+        "💀 Has muerto. Revives en 5 segundos..."
     );
 
 
-    /* MANA */
+    setTimeout(() => {
 
-    const manaBack =
-        document.createElement(
-            "div"
+        player.x = 500;
+
+        player.y = 350;
+
+
+        state.hp =
+            state.maxHp;
+
+        state.mana =
+            state.maxMana;
+
+
+        state.dead = false;
+
+
+        msg(
+            "✨ Has revivido con toda tu vida"
         );
 
-
-    manaBack.style.height =
-        "9px";
-
-    manaBack.style.marginTop =
-        "4px";
-
-    manaBack.style.background =
-        "rgba(0,0,0,0.65)";
-
-    manaBack.style.border =
-        "1px solid white";
-
-    manaBack.style.borderRadius =
-        "8px";
-
-    manaBack.style.overflow =
-        "hidden";
-
-
-    const manaBar =
-        document.createElement(
-            "div"
-        );
-
-
-    manaBar.id =
-        "customMana";
-
-
-    manaBar.style.height =
-        "100%";
-
-    manaBar.style.width =
-        "100%";
-
-    manaBar.style.background =
-        "#3584e4";
-
-
-    manaBack.appendChild(
-        manaBar
-    );
-
-
-    /* XP */
-
-    const xpBack =
-        document.createElement(
-            "div"
-        );
-
-
-    xpBack.style.height =
-        "7px";
-
-    xpBack.style.marginTop =
-        "4px";
-
-    xpBack.style.background =
-        "rgba(0,0,0,0.65)";
-
-    xpBack.style.border =
-        "1px solid white";
-
-    xpBack.style.borderRadius =
-        "8px";
-
-    xpBack.style.overflow =
-        "hidden";
-
-
-    const xpBar =
-        document.createElement(
-            "div"
-        );
-
-
-    xpBar.id =
-        "customXP";
-
-
-    xpBar.style.height =
-        "100%";
-
-    xpBar.style.width =
-        "0%";
-
-    xpBar.style.background =
-        "#e7c93d";
-
-
-    xpBack.appendChild(
-        xpBar
-    );
-
-
-    hud.appendChild(
-        hpBack
-    );
-
-    hud.appendChild(
-        manaBack
-    );
-
-    hud.appendChild(
-        xpBack
-    );
-
-
-    document.body.appendChild(
-        hud
-    );
+    }, 5000);
 }
 
 
-/* =====================================================
-   DIBUJAR MUNDO
-===================================================== */
+// ============================================================
+// EXPERIENCIA
+// ============================================================
+
+function gainXP(amount) {
+
+    state.xp += amount;
+
+
+    while (
+        state.xp >= state.xpNext
+    ) {
+
+        state.xp -=
+            state.xpNext;
+
+
+        state.level++;
+
+
+        state.xpNext =
+            Math.floor(
+                state.xpNext * 1.35
+            );
+
+
+        state.maxHp += 15;
+
+        state.hp =
+            state.maxHp;
+
+
+        state.maxMana += 5;
+
+        state.mana =
+            state.maxMana;
+
+
+        state.attack += 3;
+
+        state.defense += 1;
+
+
+        msg(
+            "🎉 ¡Subiste a nivel " +
+            state.level +
+            "!"
+        );
+    }
+}
+
+
+// ============================================================
+// MOVIMIENTO
+// ============================================================
+
+function updateMovement(dt) {
+
+    if (state.dead) return;
+
+
+    let dx = 0;
+    let dy = 0;
+
+
+    // TECLADO
+
+    if (
+        keys["w"] ||
+        keys["arrowup"]
+    ) {
+
+        dy -= 1;
+    }
+
+
+    if (
+        keys["s"] ||
+        keys["arrowdown"]
+    ) {
+
+        dy += 1;
+    }
+
+
+    if (
+        keys["a"] ||
+        keys["arrowleft"]
+    ) {
+
+        dx -= 1;
+    }
+
+
+    if (
+        keys["d"] ||
+        keys["arrowright"]
+    ) {
+
+        dx += 1;
+    }
+
+
+    // JOYSTICK
+
+    if (
+        joystick.active ||
+        Math.abs(joystick.dx) > 0 ||
+        Math.abs(joystick.dy) > 0
+    ) {
+
+        dx = joystick.dx;
+
+        dy = joystick.dy;
+    }
+
+
+    // NORMALIZAR
+
+    const length =
+        Math.hypot(dx, dy);
+
+
+    if (length > 1) {
+
+        dx /= length;
+
+        dy /= length;
+    }
+
+
+    // MOVER
+
+    player.x +=
+        dx *
+        player.speed *
+        dt / 16;
+
+
+    player.y +=
+        dy *
+        player.speed *
+        dt / 16;
+
+
+    // LIMITES
+
+    player.x =
+        Math.max(
+            20,
+            Math.min(
+                world.w - 20,
+                player.x
+            )
+        );
+
+
+    player.y =
+        Math.max(
+            20,
+            Math.min(
+                world.h - 20,
+                player.y
+            )
+        );
+}
+
+
+// ============================================================
+// REGENERACIÓN DE MANÁ
+// ============================================================
+
+let manaTimer = 0;
+
+
+function regenerate(dt) {
+
+    manaTimer += dt;
+
+
+    if (manaTimer >= 1000) {
+
+        manaTimer = 0;
+
+
+        if (!state.dead) {
+
+            state.mana =
+                Math.min(
+                    state.maxMana,
+                    state.mana + 2
+                );
+        }
+    }
+}
+
+
+// ============================================================
+// DIBUJAR MAPA
+// ============================================================
 
 function drawWorld() {
 
-    /* FONDO */
-
-    ctx.fillStyle =
-        "#4d8a49";
-
-    ctx.fillRect(
+    ctx.clearRect(
         0,
         0,
-        innerWidth,
-        innerHeight
+        canvas.width,
+        canvas.height
     );
 
-
-    /*
-       CÁMARA
-
-       El jugador queda siempre
-       en el centro de la pantalla.
-    */
 
     ctx.save();
 
 
+    // ========================================================
+    // CÁMARA
+    // ========================================================
+
+    const screenCenterX =
+        canvas.width / 2;
+
+    const screenCenterY =
+        canvas.height / 2;
+
+
     ctx.translate(
-        innerWidth / 2,
-        innerHeight / 2
+        screenCenterX,
+        screenCenterY
     );
 
 
@@ -1551,73 +1111,104 @@ function drawWorld() {
     );
 
 
-    /* AGUA */
+    // ========================================================
+    // FONDO
+    // ========================================================
 
-    ctx.fillStyle =
-        "#2d72a8";
-
-
-    ctx.fillRect(
-        0,
-        480,
-        760,
-        190
-    );
-
-
-    ctx.fillRect(
-        1260,
-        540,
-        540,
-        180
-    );
-
-
-    /* CAMINO */
-
-    ctx.fillStyle =
-        "#b99b67";
-
+    ctx.fillStyle = "#263b25";
 
     ctx.fillRect(
         0,
-        600,
+        0,
         world.w,
-        55
+        world.h
     );
 
 
-    /* ÁRBOLES */
+    // ========================================================
+    // PASTO / TERRENO
+    // ========================================================
+
+    ctx.strokeStyle =
+        "rgba(255,255,255,0.04)";
+
+    ctx.lineWidth = 1;
+
 
     for (
-        const tree of trees
+        let x = 0;
+        x < world.w;
+        x += 50
     ) {
 
-        /* tronco */
+        ctx.beginPath();
 
-        ctx.fillStyle =
-            "#65432d";
+        ctx.moveTo(x, 0);
 
-
-        ctx.fillRect(
-            tree.x - 6,
-            tree.y + 10,
-            12,
-            25
+        ctx.lineTo(
+            x,
+            world.h
         );
 
+        ctx.stroke();
+    }
 
-        /* copa */
 
-        ctx.fillStyle =
-            "#246b32";
+    for (
+        let y = 0;
+        y < world.h;
+        y += 50
+    ) {
+
+        ctx.beginPath();
+
+        ctx.moveTo(0, y);
+
+        ctx.lineTo(
+            world.w,
+            y
+        );
+
+        ctx.stroke();
+    }
+
+
+    // ========================================================
+    // ÁRBOLES
+    // ========================================================
+
+    const trees = [
+
+        [250, 250],
+        [400, 700],
+        [700, 250],
+        [1400, 300],
+        [1550, 850],
+        [300, 1000],
+        [1450, 1050]
+
+    ];
+
+
+    for (const tree of trees) {
+
+        ctx.fillStyle = "#593c24";
+
+        ctx.fillRect(
+            tree[0] - 8,
+            tree[1],
+            16,
+            35
+        );
 
 
         ctx.beginPath();
 
+        ctx.fillStyle = "#1d6b35";
+
         ctx.arc(
-            tree.x,
-            tree.y,
+            tree[0],
+            tree[1],
             28,
             0,
             Math.PI * 2
@@ -1626,16 +1217,14 @@ function drawWorld() {
         ctx.fill();
 
 
-        ctx.fillStyle =
-            "#34853f";
-
-
         ctx.beginPath();
 
+        ctx.fillStyle = "#2d8a43";
+
         ctx.arc(
-            tree.x - 12,
-            tree.y - 10,
-            16,
+            tree[0] - 10,
+            tree[1] - 8,
+            18,
             0,
             Math.PI * 2
         );
@@ -1644,142 +1233,160 @@ function drawWorld() {
     }
 
 
-    /* MINERALES */
+    // ========================================================
+    // MOBS
+    // ========================================================
 
-    for (
-        const rock of rocks
-    ) {
+    for (const mob of mobs) {
 
-        ctx.fillStyle =
-            rock.type === "copper"
-            ? "#a76538"
-            : rock.type === "iron"
-            ? "#6f747b"
-            : "#888";
+        if (mob.hp <= 0) continue;
 
+
+        const distance =
+            Math.hypot(
+                player.x - mob.x,
+                player.y - mob.y
+            );
+
+
+        // CUERPO
 
         ctx.beginPath();
 
-        ctx.arc(
-            rock.x,
-            rock.y,
-            23,
-            0,
-            Math.PI * 2
-        );
+        if (mob.name === "Lobo") {
 
-        ctx.fill();
+            ctx.fillStyle = "#777";
 
-
-        ctx.fillStyle =
-            "#fff";
-
-        ctx.font =
-            "11px Arial";
-
-        ctx.textAlign =
-            "center";
-
-
-        ctx.fillText(
-            rock.type === "copper"
-            ? "Cobre"
-            : rock.type === "iron"
-            ? "Hierro"
-            : "Piedra",
-            rock.x,
-            rock.y + 4
-        );
-    }
-
-
-    /* PESCA */
-
-    for (
-        const fish of fishSpots
-    ) {
-
-        ctx.font =
-            "24px Arial";
-
-        ctx.textAlign =
-            "center";
-
-
-        ctx.fillText(
-            "🐟",
-            fish.x,
-            fish.y
-        );
-    }
-
-
-    /* MONSTRUOS */
-
-    for (
-        const mob of mobs
-    ) {
-
-        if (
-            mob.hp <= 0
+        } else if (
+            mob.name === "Jabalí"
         ) {
 
-            continue;
+            ctx.fillStyle = "#70452d";
+
+        } else {
+
+            ctx.fillStyle = "#4c9b45";
         }
 
 
+        ctx.arc(
+            mob.x,
+            mob.y,
+            20,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+
+
+        // OJOS
+
+        ctx.fillStyle = "#fff";
+
+        ctx.beginPath();
+
+        ctx.arc(
+            mob.x - 6,
+            mob.y - 4,
+            3,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.arc(
+            mob.x + 6,
+            mob.y - 4,
+            3,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+
+
+        // ====================================================
+        // INDICADOR DE AGRESIÓN
+        // ====================================================
+
+        if (
+            distance <= mob.aggroRange
+        ) {
+
+            ctx.strokeStyle = "#ff4444";
+
+            ctx.lineWidth = 3;
+
+            ctx.beginPath();
+
+            ctx.arc(
+                mob.x,
+                mob.y,
+                25,
+                0,
+                Math.PI * 2
+            );
+
+            ctx.stroke();
+        }
+
+
+        // ====================================================
+        // BARRA DE VIDA
+        // ====================================================
+
+        const barWidth = 50;
+
+        const barHeight = 6;
+
+        const hpPercent =
+            Math.max(
+                0,
+                mob.hp / mob.maxHp
+            );
+
+
+        ctx.fillStyle = "#351515";
+
+        ctx.fillRect(
+            mob.x - barWidth / 2,
+            mob.y - 34,
+            barWidth,
+            barHeight
+        );
+
+
+        ctx.fillStyle = "#e33";
+
+        ctx.fillRect(
+            mob.x - barWidth / 2,
+            mob.y - 34,
+            barWidth * hpPercent,
+            barHeight
+        );
+
+
+        // NOMBRE
+
+        ctx.fillStyle = "#fff";
+
         ctx.font =
-            "30px Arial";
+            "12px Arial";
 
         ctx.textAlign =
             "center";
 
-
         ctx.fillText(
-            mob.name === "Lobo"
-            ? "🐺"
-            : mob.name === "Jabalí"
-            ? "🐗"
-            : "👹",
+            mob.name,
             mob.x,
-            mob.y
-        );
-
-
-        /* barra negra */
-
-        ctx.fillStyle =
-            "#222";
-
-
-        ctx.fillRect(
-            mob.x - 24,
-            mob.y - 35,
-            48,
-            6
-        );
-
-
-        /* vida */
-
-        ctx.fillStyle =
-            "#e33";
-
-
-        ctx.fillRect(
-            mob.x - 24,
-            mob.y - 35,
-            48 *
-            (
-                mob.hp /
-                mob.max
-            ),
-            6
+            mob.y - 42
         );
     }
 
 
-    /* JUGADOR */
+    // ========================================================
+    // JUGADOR
+    // ========================================================
 
     drawPlayer();
 
@@ -1788,33 +1395,28 @@ function drawWorld() {
 }
 
 
-/* =====================================================
-   PERSONAJE
-===================================================== */
+// ============================================================
+// DIBUJAR JUGADOR
+// ============================================================
 
 function drawPlayer() {
 
-    const x =
-        player.x;
+    if (state.dead) {
 
-    const y =
-        player.y;
+        ctx.globalAlpha = 0.35;
+    }
 
 
-    /* SOMBRA */
-
-    ctx.fillStyle =
-        "rgba(0,0,0,0.35)";
-
+    // CUERPO
 
     ctx.beginPath();
 
-    ctx.ellipse(
-        x,
-        y + 19,
-        19,
-        8,
-        0,
+    ctx.fillStyle = "#3b82f6";
+
+    ctx.arc(
+        player.x,
+        player.y,
+        player.r,
         0,
         Math.PI * 2
     );
@@ -1822,59 +1424,25 @@ function drawPlayer() {
     ctx.fill();
 
 
-    /* CUERPO */
+    // ARMADURA
 
-    ctx.fillStyle =
-        "#263d91";
+    ctx.strokeStyle = "#dbeafe";
 
-
-    ctx.beginPath();
-
-    ctx.arc(
-        x,
-        y + 7,
-        15,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fill();
-
-
-    /* BORDE */
-
-    ctx.strokeStyle =
-        "#111";
-
-    ctx.lineWidth =
-        2;
-
-
-    ctx.beginPath();
-
-    ctx.arc(
-        x,
-        y + 7,
-        15,
-        0,
-        Math.PI * 2
-    );
+    ctx.lineWidth = 3;
 
     ctx.stroke();
 
 
-    /* CABEZA */
-
-    ctx.fillStyle =
-        "#f0c39b";
-
+    // CABEZA
 
     ctx.beginPath();
 
+    ctx.fillStyle = "#f1c27d";
+
     ctx.arc(
-        x,
-        y - 10,
-        11,
+        player.x,
+        player.y - 18,
+        9,
         0,
         Math.PI * 2
     );
@@ -1882,495 +1450,416 @@ function drawPlayer() {
     ctx.fill();
 
 
-    /* PELO */
+    // ESPADA
 
-    ctx.fillStyle =
-        "#252525";
+    ctx.strokeStyle = "#e5e7eb";
 
-
-    ctx.beginPath();
-
-    ctx.arc(
-        x,
-        y - 13,
-        11,
-        Math.PI,
-        Math.PI * 2
-    );
-
-    ctx.fill();
-
-
-    /* OJOS */
-
-    ctx.fillStyle =
-        "#111";
-
-
-    ctx.beginPath();
-
-    ctx.arc(
-        x - 4,
-        y - 9,
-        1.5,
-        0,
-        Math.PI * 2
-    );
-
-
-    ctx.arc(
-        x + 4,
-        y - 9,
-        1.5,
-        0,
-        Math.PI * 2
-    );
-
-
-    ctx.fill();
-
-
-    /* ESPADA */
-
-    ctx.strokeStyle =
-        "#eee";
-
-    ctx.lineWidth =
-        4;
-
+    ctx.lineWidth = 5;
 
     ctx.beginPath();
 
     ctx.moveTo(
-        x + 10,
-        y + 2
+        player.x + 10,
+        player.y + 4
     );
-
 
     ctx.lineTo(
-        x + 23,
-        y - 16
+        player.x + 26,
+        player.y - 12
     );
-
 
     ctx.stroke();
 
 
-    /* NIVEL ENCIMA */
+    // ========================================================
+    // CÍRCULO DE VIDA
+    // ========================================================
 
-    ctx.fillStyle =
-        "white";
-
-    ctx.font =
-        "bold 12px Arial";
-
-    ctx.textAlign =
-        "center";
+    ctx.globalAlpha = 1;
 
 
-    ctx.fillText(
-        "Nv. " +
-        state.level,
-        x,
-        y - 29
+    const hpPercent =
+        Math.max(
+            0,
+            state.hp / state.maxHp
+        );
+
+
+    ctx.fillStyle = "#321";
+
+    ctx.fillRect(
+        player.x - 25,
+        player.y + 25,
+        50,
+        6
+    );
+
+
+    ctx.fillStyle = "#2ecc71";
+
+    ctx.fillRect(
+        player.x - 25,
+        player.y + 25,
+        50 * hpPercent,
+        6
     );
 }
 
 
-/* =====================================================
-   MOVIMIENTO
-===================================================== */
-
-function updateMovement(dt) {
-
-    if (
-        state.dead
-    ) {
-
-        return;
-    }
-
-
-    let dx =
-        0;
-
-    let dy =
-        0;
-
-
-    /* JOYSTICK */
-
-    if (
-        joystick.active
-    ) {
-
-        dx +=
-            joystick.dx;
-
-        dy +=
-            joystick.dy;
-    }
-
-
-    /* TECLADO */
-
-    if (
-        keys["w"] ||
-        keys["ArrowUp"]
-    ) {
-
-        dy--;
-    }
-
-
-    if (
-        keys["s"] ||
-        keys["ArrowDown"]
-    ) {
-
-        dy++;
-    }
-
-
-    if (
-        keys["a"] ||
-        keys["ArrowLeft"]
-    ) {
-
-        dx--;
-    }
-
-
-    if (
-        keys["d"] ||
-        keys["ArrowRight"]
-    ) {
-
-        dx++;
-    }
-
-
-    if (
-        dx !== 0 ||
-        dy !== 0
-    ) {
-
-        const length =
-            Math.hypot(
-                dx,
-                dy
-            );
-
-
-        dx /=
-            length;
-
-        dy /=
-            length;
-
-
-        player.x +=
-            dx *
-            player.speed *
-            (dt / 16);
-
-
-        player.y +=
-            dy *
-            player.speed *
-            (dt / 16);
-    }
-
-
-    /* LIMITES */
-
-    player.x =
-        Math.max(
-            25,
-            Math.min(
-                world.w - 25,
-                player.x
-            )
-        );
-
-
-    player.y =
-        Math.max(
-            25,
-            Math.min(
-                world.h - 25,
-                player.y
-            )
-        );
-}
-
-
-/* =====================================================
-   REGENERACIÓN
-===================================================== */
-
-let regenTimer =
-    0;
-
-
-function regenerate(dt) {
-
-    regenTimer +=
-        dt;
-
-
-    if (
-        regenTimer <
-        1000
-    ) {
-
-        return;
-    }
-
-
-    regenTimer =
-        0;
-
-
-    if (
-        state.hp <
-        state.maxHp
-    ) {
-
-        state.hp =
-            Math.min(
-                state.maxHp,
-                state.hp + 1
-            );
-    }
-
-
-    if (
-        state.mana <
-        state.maxMana
-    ) {
-
-        state.mana =
-            Math.min(
-                state.maxMana,
-                state.mana + 2
-            );
-    }
-}
-
-
-/* =====================================================
-   HUD
-===================================================== */
+// ============================================================
+// HUD
+// ============================================================
 
 function updateHUD() {
 
-    const level =
-        document.getElementById(
-            "level"
-        );
-
-    const hp =
-        document.getElementById(
-            "hp"
-        );
-
-    const gold =
-        document.getElementById(
-            "gold"
-        );
-
-    const wood =
-        document.getElementById(
-            "wood"
-        );
-
-    const stone =
-        document.getElementById(
-            "stone"
-        );
-
-    const copper =
-        document.getElementById(
-            "copper"
-        );
-
-    const iron =
-        document.getElementById(
-            "iron"
-        );
-
-    const fish =
-        document.getElementById(
-            "fish"
-        );
+    let hud =
+        document.getElementById("gameHUD");
 
 
-    if (level) {
+    if (!hud) {
 
-        level.textContent =
-            state.level;
+        hud =
+            document.createElement("div");
+
+        hud.id = "gameHUD";
+
+
+        hud.style.position =
+            "fixed";
+
+        hud.style.top =
+            "10px";
+
+        hud.style.left =
+            "10px";
+
+        hud.style.zIndex =
+            "1000";
+
+        hud.style.color =
+            "white";
+
+        hud.style.fontFamily =
+            "Arial";
+
+        hud.style.background =
+            "rgba(0,0,0,0.55)";
+
+        hud.style.padding =
+            "10px";
+
+        hud.style.borderRadius =
+            "10px";
+
+        hud.style.fontSize =
+            "13px";
+
+        hud.style.minWidth =
+            "145px";
+
+
+        document.body.appendChild(hud);
     }
 
 
-    if (hp) {
+    hud.innerHTML = `
 
-        hp.textContent =
-            state.hp +
-            "/" +
-            state.maxHp;
-    }
+        <b>🔥 REINOS DE CENIZA</b>
 
+        <br><br>
 
-    if (gold) {
+        ⚔️ Nivel: ${state.level}
 
-        gold.textContent =
-            state.gold;
-    }
+        <br>
 
+        ❤️ ${Math.floor(state.hp)}
+        / ${state.maxHp}
 
-    if (wood) {
+        <br>
 
-        wood.textContent =
-            state.wood;
-    }
+        💧 ${Math.floor(state.mana)}
+        / ${state.maxMana}
 
+        <br>
 
-    if (stone) {
+        ⭐ XP: ${state.xp}
+        / ${state.xpNext}
 
-        stone.textContent =
-            state.stone;
-    }
+        <br>
 
+        🪙 Oro: ${state.gold}
 
-    if (copper) {
+        <br>
 
-        copper.textContent =
-            state.copper;
-    }
+        ⚔️ Ataque: ${state.attack}
 
+        <br>
 
-    if (iron) {
+        🛡️ Defensa: ${state.defense}
 
-        iron.textContent =
-            state.iron;
-    }
+    `;
 
 
-    if (fish) {
+    // ========================================================
+    // MENSAJE
+    // ========================================================
 
-        fish.textContent =
-            state.fish;
-    }
+    if (messageTimer > 0) {
 
-
-    /* BARRAS NUEVAS */
-
-    const hpBar =
-        document.getElementById(
-            "customHP"
-        );
-
-    const manaBar =
-        document.getElementById(
-            "customMana"
-        );
-
-    const xpBar =
-        document.getElementById(
-            "customXP"
-        );
+        let message =
+            document.getElementById(
+                "gameMessage"
+            );
 
 
-    if (hpBar) {
+        if (!message) {
 
-        hpBar.style.width =
-            (
-                state.hp /
-                state.maxHp *
-                100
-            ) + "%";
-    }
+            message =
+                document.createElement("div");
+
+            message.id =
+                "gameMessage";
 
 
-    if (manaBar) {
+            message.style.position =
+                "fixed";
 
-        manaBar.style.width =
-            (
-                state.mana /
-                state.maxMana *
-                100
-            ) + "%";
-    }
+            message.style.left =
+                "50%";
+
+            message.style.top =
+                "18%";
+
+            message.style.transform =
+                "translateX(-50%)";
+
+            message.style.zIndex =
+                "1100";
+
+            message.style.color =
+                "white";
+
+            message.style.background =
+                "rgba(0,0,0,0.7)";
+
+            message.style.padding =
+                "10px 18px";
+
+            message.style.borderRadius =
+                "10px";
+
+            message.style.fontFamily =
+                "Arial";
+
+            message.style.fontWeight =
+                "bold";
+
+            message.style.textAlign =
+                "center";
+
+            message.style.pointerEvents =
+                "none";
 
 
-    if (xpBar) {
+            document.body.appendChild(
+                message
+            );
+        }
 
-        xpBar.style.width =
-            (
-                state.xp /
-                state.xpNext *
-                100
-            ) + "%";
+
+        message.textContent =
+            messageText;
+
+        message.style.display =
+            "block";
+
+    } else {
+
+        const message =
+            document.getElementById(
+                "gameMessage"
+            );
+
+        if (message) {
+
+            message.style.display =
+                "none";
+        }
     }
 }
 
 
-/* =====================================================
-   GAME LOOP
-===================================================== */
+// ============================================================
+// BOTONES DE HABILIDADES
+// ============================================================
 
-function update(time) {
+function createSkillButtons() {
 
-    const dt =
-        Math.min(
-            32,
-            time - last || 16
+    let container =
+        document.getElementById(
+            "skillContainer"
         );
 
 
-    last =
-        time;
+    if (container) return;
 
 
-    updateMovement(
-        dt
+    container =
+        document.createElement("div");
+
+
+    container.id =
+        "skillContainer";
+
+
+    container.style.position =
+        "fixed";
+
+    container.style.right =
+        "12px";
+
+    container.style.bottom =
+        "18px";
+
+    container.style.zIndex =
+        "1000";
+
+    container.style.display =
+        "flex";
+
+    container.style.flexDirection =
+        "column";
+
+    container.style.gap =
+        "7px";
+
+
+    document.body.appendChild(
+        container
     );
 
 
-    regenerate(
-        dt
+    skills.forEach(skill => {
+
+        const button =
+            document.createElement("button");
+
+
+        button.innerHTML =
+            skill.icon;
+
+
+        button.title =
+            skill.name;
+
+
+        button.style.width =
+            "55px";
+
+        button.style.height =
+            "55px";
+
+
+        button.style.borderRadius =
+            "50%";
+
+
+        button.style.border =
+            "2px solid rgba(255,255,255,0.5)";
+
+
+        button.style.background =
+            "rgba(0,0,0,0.65)";
+
+
+        button.style.color =
+            "white";
+
+
+        button.style.fontSize =
+            "23px";
+
+
+        button.style.touchAction =
+            "manipulation";
+
+
+        button.addEventListener(
+            "pointerdown",
+            e => {
+
+                e.preventDefault();
+
+                attackWithSkill(
+                    skill
+                );
+            }
+        );
+
+
+        container.appendChild(
+            button
+        );
+    });
+}
+
+
+// ============================================================
+// RELOJ
+// ============================================================
+
+let last = performance.now();
+
+
+// ============================================================
+// GAME LOOP
+// ============================================================
+
+function gameLoop(now) {
+
+    const dt =
+        Math.min(
+            40,
+            now - last
+        );
+
+
+    last = now;
+
+
+    updateMovement(dt);
+
+    updateMobs(
+        dt,
+        now
     );
+
+    regenerate(dt);
+
+
+    if (messageTimer > 0) {
+
+        messageTimer -= dt;
+    }
 
 
     drawWorld();
-
 
     updateHUD();
 
 
     requestAnimationFrame(
-        update
+        gameLoop
     );
 }
 
 
-/* =====================================================
-   INICIO
-===================================================== */
+// ============================================================
+// INICIAR
+// ============================================================
 
-createJoystick();
-
-createCombatUI();
-
-createExtraHUD();
-
-
-msg(
-    "🕹️ Mueve el joystick con el dedo. Acércate a recursos o enemigos."
-);
-
+createSkillButtons();
 
 requestAnimationFrame(
-    update
+    gameLoop
 );
