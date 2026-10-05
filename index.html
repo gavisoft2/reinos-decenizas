@@ -19,1012 +19,562 @@ box-sizing:border-box;
 -webkit-tap-highlight-color:transparent;
 }
 
-html,
-body{
-
+html,body{
 margin:0;
 padding:0;
-
 width:100%;
 height:100%;
-
 overflow:hidden;
-
-background:#080b0c;
-
-font-family:
-Arial,
-sans-serif;
-
+background:#10131a;
+font-family:Arial,Helvetica,sans-serif;
+color:white;
 touch-action:none;
-user-select:none;
-
-}
-
-#game{
-
-position:fixed;
-inset:0;
-
-overflow:hidden;
-
-background:#162318;
-
 }
 
 #world{
-
-position:absolute;
-
+position:fixed;
 left:0;
 top:0;
-
 width:100%;
 height:100%;
-
 display:block;
-
+background:#172018;
 }
 
-/* =========================
-HUD SUPERIOR
-========================= */
+/* ================= HUD ================= */
 
 #hud{
-
 position:fixed;
-
 top:8px;
 left:8px;
-
-width:285px;
-
+right:8px;
 z-index:20;
-
 pointer-events:none;
-
 }
 
-.player-header{
-
+#topPanel{
 display:flex;
-
 align-items:center;
-
 gap:8px;
-
+max-width:650px;
 }
 
-.avatar{
-
-width:58px;
-height:58px;
-
+#portrait{
+width:48px;
+height:48px;
 border-radius:50%;
-
-border:3px solid #c99b45;
-
+border:2px solid #d8a84e;
 background:
-radial-gradient(
-circle at 40% 35%,
-#43566e,
-#17202b 65%,
-#080b0d
-);
-
-box-shadow:
-0 3px 10px #000;
-
-display:flex;
-
-align-items:center;
-justify-content:center;
-
-font-size:34px;
-
+radial-gradient(circle at 50% 30%,#f2c79a 0 20%,transparent 21%),
+linear-gradient(#26394f 0 55%,#141820 56%);
+box-shadow:0 2px 8px #000;
 }
 
-.player-info{
-
+#bars{
 flex:1;
-
-}
-
-.player-name{
-
-color:#fff;
-
-font-size:15px;
-
-font-weight:bold;
-
-text-shadow:
-2px 2px 3px #000;
-
-}
-
-.level{
-
-color:#ffd66b;
-
-font-weight:bold;
-
-margin-left:5px;
-
+max-width:430px;
 }
 
 .bar{
-
-height:14px;
-
-margin-top:3px;
-
-border:
-2px solid #151515;
-
-border-radius:7px;
-
+height:13px;
+background:#1b1d22;
+border:1px solid #000;
+border-radius:8px;
 overflow:hidden;
-
-background:#222;
-
-box-shadow:
-0 2px 5px #000;
-
+margin-bottom:3px;
+box-shadow:inset 0 1px 2px #000;
 }
 
-.bar-inner{
-
+.bar div{
 height:100%;
-
 width:100%;
-
-transition:
-width .15s;
-
+transition:.2s;
 }
 
 #hpBar{
-
-background:
-linear-gradient(
-90deg,
-#7b1111,
-#ed3030
-);
-
+background:linear-gradient(90deg,#7b1111,#ef3333);
 }
 
 #manaBar{
-
-background:
-linear-gradient(
-90deg,
-#123e86,
-#238cff
-);
-
+background:linear-gradient(90deg,#113e91,#3f9dff);
 }
 
 #xpBar{
-
-background:
-linear-gradient(
-90deg,
-#704c00,
-#f5bf27
-);
-
+background:linear-gradient(90deg,#73500c,#e5b633);
 }
 
-.hud-numbers{
-
-color:#fff;
-
-font-size:10px;
-
+.barText{
+position:absolute;
+font-size:8px;
+margin-top:-12px;
+width:100%;
 text-align:center;
-
-margin-top:-13px;
-
-position:relative;
-
-text-shadow:
-1px 1px 2px #000;
-
+text-shadow:1px 1px #000;
 }
 
-/* =========================
-RECURSOS
-========================= */
+#level{
+font-weight:bold;
+color:#ffd86b;
+font-size:17px;
+}
+
+/* ================= RECURSOS ================= */
 
 #resources{
-
 position:fixed;
-
-top:8px;
-left:305px;
-
-z-index:25;
-
+top:64px;
+left:8px;
+z-index:20;
 display:flex;
-
 gap:5px;
-
-padding:7px 10px;
-
-background:
-rgba(8,10,12,.82);
-
-border:
-1px solid #67552d;
-
-border-radius:10px;
-
-color:#fff;
-
-font-size:12px;
-
-box-shadow:
-0 3px 10px #000;
-
+flex-wrap:wrap;
+max-width:350px;
+pointer-events:none;
 }
 
 .resource{
-
-white-space:nowrap;
-
+background:rgba(15,17,21,.82);
+border:1px solid #765b2b;
+border-radius:8px;
+padding:4px 7px;
+font-size:12px;
+box-shadow:0 2px 5px #000;
 }
 
-/* =========================
-MINIMAPA
-========================= */
+/* ================= MINIMAPA ================= */
 
-#minimap{
-
+#miniWrap{
 position:fixed;
-
 top:8px;
 right:8px;
-
-width:145px;
-height:145px;
-
 z-index:25;
-
+width:118px;
+height:118px;
 border-radius:50%;
-
-border:
-4px solid #332b20;
-
-background:#17351e;
-
-box-shadow:
-0 4px 15px #000;
-
 overflow:hidden;
-
+border:3px solid #b99145;
+box-shadow:0 2px 10px #000;
+background:#18251b;
 }
 
 #miniCanvas{
-
 width:100%;
 height:100%;
-
+display:block;
 }
 
-/* =========================
-BOTONES LATERALES
-========================= */
+/* ================= BOTONES LATERALES ================= */
 
 #sideButtons{
-
 position:fixed;
-
 right:8px;
-top:165px;
-
-z-index:40;
-
-display:flex;
-
-flex-direction:column;
-
-gap:9px;
-
-}
-
-.side-button{
-
-width:55px;
-height:55px;
-
-border-radius:50%;
-
-border:
-2px solid #a8874c;
-
-background:
-radial-gradient(
-circle,
-#4b3820,
-#15110d
-);
-
-color:#fff;
-
-font-size:25px;
-
-box-shadow:
-0 4px 10px #000;
-
-display:flex;
-
-align-items:center;
-justify-content:center;
-
-}
-
-.side-label{
-
-font-size:8px;
-
-margin-top:-7px;
-
-text-align:center;
-
-color:#fff;
-
-text-shadow:
-1px 1px 2px #000;
-
-}
-
-/* =========================
-MISIÓN
-========================= */
-
-#questPanel{
-
-position:fixed;
-
-left:8px;
-
-top:175px;
-
+top:135px;
 z-index:30;
-
-width:240px;
-
-padding:10px;
-
-border:
-1px solid #806a36;
-
-border-radius:8px;
-
-background:
-linear-gradient(
-135deg,
-rgba(8,10,10,.9),
-rgba(30,26,17,.9)
-);
-
-color:#fff;
-
-box-shadow:
-0 4px 15px #000;
-
+display:flex;
+flex-direction:column;
+gap:7px;
 }
 
-.quest-title{
-
-color:#ffd34d;
-
-font-weight:bold;
-
-font-size:13px;
-
-margin-bottom:5px;
-
+.uiButton{
+width:47px;
+height:47px;
+border-radius:12px;
+border:2px solid #87652d;
+background:linear-gradient(#343943,#17191e);
+color:white;
+font-size:21px;
+box-shadow:0 3px 7px #000;
 }
 
-.quest-name{
-
-font-weight:bold;
-
-font-size:12px;
-
+.uiButton:active{
+transform:scale(.92);
 }
 
-.quest-text{
+/* ================= MISION ================= */
 
-font-size:10px;
-
-color:#ccc;
-
-margin-top:3px;
-
-}
-
-/* =========================
-MENSAJES
-========================= */
-
-#message{
-
+#questBox{
 position:fixed;
-
-top:145px;
-
-left:50%;
-
-transform:
-translateX(-50%);
-
-z-index:100;
-
-padding:7px 14px;
-
-border-radius:20px;
-
-background:
-rgba(0,0,0,.7);
-
-border:
-1px solid #d2a94c;
-
-color:#fff;
-
-font-weight:bold;
-
-text-align:center;
-
-text-shadow:
-2px 2px 3px #000;
-
+left:8px;
+top:108px;
+z-index:20;
+width:215px;
+background:rgba(16,18,23,.85);
+border:1px solid #87652d;
+border-radius:8px;
+padding:7px;
+font-size:11px;
 pointer-events:none;
-
-opacity:0;
-
-transition:
-opacity .2s;
-
 }
 
-/* =========================
-JOYSTICK
-========================= */
+#questTitle{
+color:#ffd76a;
+font-weight:bold;
+margin-bottom:4px;
+}
+
+/* ================= JOYSTICK ================= */
 
 #joystick{
-
 position:fixed;
-
 left:22px;
-bottom:28px;
-
+bottom:25px;
+z-index:40;
 width:145px;
 height:145px;
-
-z-index:50;
-
 border-radius:50%;
-
-background:
-radial-gradient(
-circle,
-rgba(255,255,255,.12),
-rgba(0,0,0,.28)
-);
-
-border:
-2px solid rgba(255,255,255,.22);
-
-box-shadow:
-inset 0 0 25px #000,
-0 5px 15px #000;
-
-touch-action:none;
-
+background:rgba(30,35,42,.65);
+border:3px solid rgba(215,174,91,.7);
+box-shadow:inset 0 0 20px #000,0 4px 10px #000;
 }
 
 #joystickKnob{
-
 position:absolute;
-
-width:65px;
-height:65px;
-
-left:40px;
-top:40px;
-
+width:68px;
+height:68px;
+left:50%;
+top:50%;
+margin-left:-34px;
+margin-top:-34px;
 border-radius:50%;
-
-background:
-radial-gradient(
-circle at 35% 30%,
-#777,
-#292929
-);
-
-border:
-3px solid #aaa;
-
-box-shadow:
-0 4px 10px #000;
-
-pointer-events:none;
-
+background:radial-gradient(circle at 35% 30%,#687281,#252b34);
+border:2px solid #b99b61;
+box-shadow:0 3px 8px #000;
 }
 
-/* =========================
-BOTÓN ATAQUE
-========================= */
+/* ================= ATAQUE ================= */
 
 #attackButton{
-
 position:fixed;
-
-right:22px;
-bottom:35px;
-
-width:92px;
-height:92px;
-
-z-index:55;
-
+right:24px;
+bottom:28px;
+z-index:40;
+width:94px;
+height:94px;
 border-radius:50%;
-
-border:
-4px solid #b99b5b;
-
-background:
-radial-gradient(
-circle at 35% 30%,
-#9e3d30,
-#270d0d
-);
-
-color:#fff;
-
-font-size:43px;
-
-display:flex;
-
-align-items:center;
-justify-content:center;
-
-box-shadow:
-0 6px 15px #000,
-inset 0 0 15px rgba(255,255,255,.2);
-
+border:4px solid #c89a43;
+background:radial-gradient(circle,#7e2424,#351116);
+color:white;
+font-size:38px;
+box-shadow:0 4px 12px #000;
 }
 
 #attackButton:active{
-
 transform:scale(.9);
-
 }
 
-/* =========================
-HABILIDADES
-========================= */
+/* ================= HABILIDADES ================= */
 
 #skills{
-
 position:fixed;
-
 left:50%;
-
-bottom:12px;
-
-transform:
-translateX(-50%);
-
-z-index:52;
-
+bottom:17px;
+transform:translateX(-50%);
+z-index:40;
 display:flex;
-
 gap:5px;
-
-padding:5px;
-
-border-radius:10px;
-
-background:
-rgba(7,8,9,.78);
-
-border:
-1px solid #65532d;
-
+max-width:calc(100% - 330px);
+overflow:hidden;
 }
 
 .skill{
-
 position:relative;
-
-width:64px;
-height:70px;
-
-border:
-2px solid #777;
-
-border-radius:8px;
-
-background:
-linear-gradient(
-145deg,
-#263344,
-#090b0e
-);
-
-color:#fff;
-
-display:flex;
-
-flex-direction:column;
-
-align-items:center;
-justify-content:center;
-
-box-shadow:
-0 3px 8px #000;
-
-}
-
-.skill.unlocked{
-
-border-color:#d3a849;
-
+width:54px;
+height:54px;
+flex:none;
+border:2px solid #967337;
+border-radius:9px;
+background:linear-gradient(#303640,#14171c);
+box-shadow:0 3px 7px #000;
+overflow:hidden;
 }
 
 .skill.locked{
-
-filter:
-grayscale(1);
-
-opacity:.5;
-
+filter:grayscale(1);
+opacity:.45;
 }
 
-.skill-icon{
-
-font-size:27px;
-
-}
-
-.skill-name{
-
-font-size:8px;
-
-font-weight:bold;
-
-white-space:nowrap;
-
-}
-
-.skill-level{
-
-font-size:8px;
-
-color:#ffd65a;
-
-}
-
-.skill-cooldown{
-
-position:absolute;
-
-inset:0;
-
-display:none;
-
+.skillIcon{
+font-size:25px;
+height:100%;
+display:flex;
 align-items:center;
 justify-content:center;
-
-font-size:19px;
-
-font-weight:bold;
-
-background:
-rgba(0,0,0,.65);
-
-border-radius:6px;
-
 }
 
-.skill.on-cooldown .skill-cooldown{
+.skillName{
+position:absolute;
+bottom:1px;
+left:0;
+right:0;
+font-size:7px;
+background:rgba(0,0,0,.7);
+text-align:center;
+white-space:nowrap;
+overflow:hidden;
+}
 
+.skillLevel{
+position:absolute;
+top:1px;
+right:3px;
+font-size:9px;
+color:#ffd65e;
+}
+
+.cooldown{
+position:absolute;
+left:0;
+right:0;
+top:0;
+bottom:0;
 display:flex;
-
+align-items:center;
+justify-content:center;
+background:rgba(0,0,0,.6);
+font-weight:bold;
+font-size:17px;
 }
 
-/* =========================
-PANEL DE PERSONAJE
-========================= */
+/* ================= MENSAJE ================= */
 
-#characterPanel{
-
+#message{
 position:fixed;
+left:50%;
+top:28%;
+transform:translateX(-50%);
+z-index:100;
+background:rgba(10,10,12,.9);
+border:1px solid #c59a47;
+border-radius:9px;
+padding:10px 18px;
+color:#ffe08a;
+font-weight:bold;
+font-size:14px;
+text-align:center;
+display:none;
+box-shadow:0 4px 15px #000;
+max-width:90%;
+}
 
+/* ================= PANELES ================= */
+
+.panel{
+position:fixed;
+z-index:80;
 left:50%;
 top:50%;
-
-transform:
-translate(-50%,-50%);
-
-width:300px;
-
-padding:15px;
-
-z-index:200;
-
+transform:translate(-50%,-50%);
+width:min(92vw,500px);
+max-height:80vh;
+overflow:auto;
+background:linear-gradient(#272b32,#15171b);
+border:2px solid #a37b35;
+border-radius:13px;
+box-shadow:0 8px 30px #000;
+padding:14px;
 display:none;
-
-background:
-linear-gradient(
-145deg,
-#24201a,
-#0e1011
-);
-
-border:
-2px solid #b58b42;
-
-border-radius:12px;
-
-color:#fff;
-
-box-shadow:
-0 10px 35px #000;
-
 }
 
-.panel-title{
+.panel.open{
+display:block;
+}
 
-font-size:18px;
+.panel h2{
+margin:0 0 10px;
+color:#ffd66a;
+font-size:20px;
+}
 
-color:#ffd45a;
+.closePanel{
+float:right;
+background:#501d1d;
+border:1px solid #a44;
+color:white;
+border-radius:7px;
+padding:4px 9px;
+}
 
-font-weight:bold;
-
-margin-bottom:10px;
-
+.statsGrid{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:7px;
 }
 
 .stat{
-
-display:flex;
-
-justify-content:space-between;
-
-padding:5px 0;
-
-border-bottom:
-1px solid #333;
-
-font-size:13px;
-
-}
-
-.close{
-
-position:absolute;
-
-right:10px;
-top:8px;
-
-font-size:20px;
-
-color:#fff;
-
-}
-
-/* =========================
-INVENTARIO
-========================= */
-
-#inventoryPanel{
-
-position:fixed;
-
-left:50%;
-top:50%;
-
-transform:
-translate(-50%,-50%);
-
-width:310px;
-
-padding:15px;
-
-z-index:200;
-
-display:none;
-
-background:
-linear-gradient(
-145deg,
-#25221b,
-#0c0e0f
-);
-
-border:
-2px solid #b58b42;
-
-border-radius:12px;
-
-color:#fff;
-
-box-shadow:
-0 10px 35px #000;
-
-}
-
-.inventory-grid{
-
-display:grid;
-
-grid-template-columns:
-repeat(3,1fr);
-
-gap:7px;
-
-}
-
-.inv-slot{
-
-height:65px;
-
-border:
-1px solid #66532f;
-
+background:#1c2026;
+border:1px solid #464b54;
+padding:8px;
 border-radius:7px;
+}
 
-background:
-rgba(255,255,255,.04);
+.inventoryGrid{
+display:grid;
+grid-template-columns:repeat(5,1fr);
+gap:6px;
+}
 
+.slot{
+height:65px;
+background:#181b20;
+border:1px solid #62532f;
+border-radius:7px;
 display:flex;
-
 flex-direction:column;
-
 align-items:center;
 justify-content:center;
-
-font-size:10px;
-
+font-size:24px;
+position:relative;
 }
 
-.inv-icon{
-
-font-size:25px;
-
+.slotName{
+font-size:8px;
+text-align:center;
+color:#ddd;
 }
 
-/* =========================
-MÓVIL
-========================= */
-
-@media(max-width:700px){
-
-#resources{
-
-left:8px;
-
-top:72px;
-
-max-width:280px;
-
-overflow:hidden;
-
+.slotQty{
+position:absolute;
+right:3px;
+bottom:2px;
+font-size:11px;
+color:#ffd66a;
 }
 
-#questPanel{
-
-top:170px;
-
-width:190px;
-
+.itemButton{
+width:100%;
+padding:9px;
+margin:4px 0;
+background:linear-gradient(#3c414b,#1c2026);
+border:1px solid #8b6b35;
+border-radius:7px;
+color:white;
+text-align:left;
 }
 
-#minimap{
+.itemButton:active{
+transform:scale(.98);
+}
 
-width:110px;
-height:110px;
+.questItem{
+padding:9px;
+margin-bottom:6px;
+background:#1b1f25;
+border:1px solid #4c5058;
+border-radius:8px;
+}
 
+.questItem.done{
+border-color:#4f9d58;
+}
+
+.npcDialogue{
+font-size:14px;
+line-height:1.5;
+margin-bottom:10px;
+}
+
+.actionRow{
+display:flex;
+gap:6px;
+flex-wrap:wrap;
+}
+
+.goldText{
+color:#ffd34f;
+}
+
+.good{
+color:#62e879;
+}
+
+.rare{
+color:#5bbcff;
+}
+
+.epic{
+color:#d978ff;
+}
+
+.legendary{
+color:#ff9a32;
+}
+
+/* ================= DEATH ================= */
+
+#deathScreen{
+position:fixed;
+inset:0;
+z-index:200;
+background:rgba(0,0,0,.82);
+display:none;
+align-items:center;
+justify-content:center;
+text-align:center;
+}
+
+#deathScreen h1{
+color:#d73737;
+font-size:36px;
+}
+
+/* ================= MOBILE ================= */
+
+@media(max-width:600px){
+
+#miniWrap{
+width:92px;
+height:92px;
+}
+
+#questBox{
+top:106px;
+width:175px;
+font-size:9px;
 }
 
 #sideButtons{
-
-top:125px;
-
+top:105px;
 }
 
-.side-button{
-
-width:48px;
-height:48px;
-
-font-size:21px;
-
+.uiButton{
+width:40px;
+height:40px;
+font-size:17px;
 }
 
 #skills{
-
-bottom:9px;
-
-left:48%;
-
+bottom:8px;
+max-width:calc(100% - 260px);
 }
 
 .skill{
-
-width:53px;
-height:63px;
-
+width:45px;
+height:45px;
 }
 
-.skill-icon{
-
-font-size:23px;
-
-}
-
-.skill-name{
-
-font-size:7px;
-
-}
-
-#attackButton{
-
-right:15px;
-
-bottom:110px;
-
-width:78px;
-height:78px;
-
-font-size:35px;
-
+.skillIcon{
+font-size:20px;
 }
 
 #joystick{
-
-bottom:20px;
-
-left:15px;
-
 width:130px;
 height:130px;
-
+left:15px;
+bottom:18px;
 }
 
 #joystickKnob{
-
-left:35px;
-top:35px;
-
-}
-
-}
-
-/* =========================
-PC
-========================= */
-
-@media(min-width:900px){
-
-#joystick{
-
-left:35px;
-
+width:60px;
+height:60px;
+margin-left:-30px;
+margin-top:-30px;
 }
 
 #attackButton{
-
-right:35px;
-
+width:82px;
+height:82px;
+right:16px;
+bottom:23px;
 }
 
 }
@@ -1035,203 +585,76 @@ right:35px;
 
 <body>
 
-<div id="game">
-
 <canvas id="world"></canvas>
-
-</div>
-
-<!-- HUD -->
 
 <div id="hud">
 
-<div class="player-header">
+<div id="topPanel">
 
-<div class="avatar">⚔️</div>
+<div id="portrait"></div>
 
-<div class="player-info">
+<div id="bars">
 
-<div class="player-name">
-
-Ragnar
-
-<span class="level">
-Nv. <span id="level">1</span>
-</span>
-
+<div class="bar">
+<div id="hpBar"></div>
+<span class="barText" id="hpText"></span>
 </div>
 
 <div class="bar">
-<div
-id="hpBar"
-class="bar-inner"
-></div>
-</div>
-
-<div
-id="hpText"
-class="hud-numbers"
->
-100 / 100
+<div id="manaBar"></div>
+<span class="barText" id="manaText"></span>
 </div>
 
 <div class="bar">
-<div
-id="manaBar"
-class="bar-inner"
-></div>
-</div>
-
-<div
-id="manaText"
-class="hud-numbers"
->
-50 / 50
-</div>
-
-<div class="bar">
-<div
-id="xpBar"
-class="bar-inner"
-></div>
-</div>
-
-<div
-id="xpText"
-class="hud-numbers"
->
-0 / 100 XP
+<div id="xpBar"></div>
+<span class="barText" id="xpText"></span>
 </div>
 
 </div>
 
-</div>
+<div id="level">Nv. 1</div>
 
 </div>
 
-<!-- RECURSOS -->
+</div>
 
 <div id="resources">
 
-<span class="resource">
-💰 <span id="gold">0</span>
-</span>
-
-<span class="resource">
-🌲 <span id="wood">0</span>
-</span>
-
-<span class="resource">
-🪨 <span id="stone">0</span>
-</span>
-
-<span class="resource">
-🟠 <span id="copper">0</span>
-</span>
-
-<span class="resource">
-⚙️ <span id="iron">0</span>
-</span>
-
-<span class="resource">
-🐟 <span id="fish">0</span>
-</span>
+<div class="resource">💰 <span id="gold">0</span></div>
+<div class="resource">🪵 <span id="wood">0</span></div>
+<div class="resource">🪨 <span id="stone">0</span></div>
+<div class="resource">🟠 <span id="copper">0</span></div>
+<div class="resource">⚙️ <span id="iron">0</span></div>
+<div class="resource">🐟 <span id="fish">0</span></div>
 
 </div>
 
-<!-- MINIMAPA -->
+<div id="questBox">
 
-<div id="minimap">
+<div id="questTitle">📜 Misión activa</div>
 
-<canvas id="miniCanvas"></canvas>
-
-</div>
-
-<!-- MISION -->
-
-<div id="questPanel">
-
-<div class="quest-title">
-❗ MISIÓN PRINCIPAL
-</div>
-
-<div class="quest-name">
-El origen de la ceniza
-</div>
-
-<div class="quest-text">
-Explora el mundo y derrota enemigos.
+<div id="questText">
+Habla con el Guardián de Ceniza.
 </div>
 
 </div>
 
-<!-- BOTONES -->
+<div id="miniWrap">
+
+<canvas id="miniCanvas" width="180" height="180"></canvas>
+
+</div>
 
 <div id="sideButtons">
 
-<div>
-
-<div
-class="side-button"
-onclick="toggleInventory()"
->
-🎒
-</div>
-
-<div class="side-label">
-Inventario
-</div>
+<button class="uiButton" id="inventoryButton">🎒</button>
+<button class="uiButton" id="characterButton">⚔️</button>
+<button class="uiButton" id="questsButton">📜</button>
+<button class="uiButton" id="shopButton">🛒</button>
 
 </div>
 
-<div>
-
-<div
-class="side-button"
-onclick="toggleCharacter()"
->
-🧙
-</div>
-
-<div class="side-label">
-Personaje
-</div>
-
-</div>
-
-<div>
-
-<div
-class="side-button"
-onclick="showQuest()"
->
-📜
-</div>
-
-<div class="side-label">
-Misiones
-</div>
-
-</div>
-
-<div>
-
-<div
-class="side-button"
-onclick="showShop()"
->
-🏪
-</div>
-
-<div class="side-label">
-Tienda
-</div>
-
-</div>
-
-</div>
-
-<!-- JOYSTICK -->
+<div id="skills"></div>
 
 <div id="joystick">
 
@@ -1239,121 +662,98 @@ Tienda
 
 </div>
 
-<!-- ATAQUE -->
-
-<div id="attackButton">
-
-⚔️
-
-</div>
-
-<!-- HABILIDADES -->
-
-<div id="skills"></div>
-
-<!-- MENSAJE -->
+<button id="attackButton">⚔️</button>
 
 <div id="message"></div>
 
-<!-- PERSONAJE -->
-
-<div id="characterPanel">
-
-<div
-class="close"
-onclick="toggleCharacter()"
->
-✕
-</div>
-
-<div class="panel-title">
-🧙 PERSONAJE
-</div>
-
-<div class="stat">
-<span>Nivel</span>
-<b id="panelLevel">1</b>
-</div>
-
-<div class="stat">
-<span>Vida</span>
-<b id="panelHp">100</b>
-</div>
-
-<div class="stat">
-<span>Maná</span>
-<b id="panelMana">50</b>
-</div>
-
-<div class="stat">
-<span>Daño</span>
-<b id="panelDamage">25</b>
-</div>
-
-<div class="stat">
-<span>Defensa</span>
-<b id="panelDefense">5</b>
-</div>
-
-<div class="stat">
-<span>Velocidad</span>
-<b id="panelSpeed">260</b>
-</div>
-
-</div>
-
 <!-- INVENTARIO -->
 
-<div id="inventoryPanel">
+<div class="panel" id="inventoryPanel">
 
-<div
-class="close"
-onclick="toggleInventory()"
->
-✕
-</div>
+<button class="closePanel">X</button>
 
-<div class="panel-title">
-🎒 INVENTARIO
-</div>
+<h2>🎒 Inventario</h2>
 
-<div class="inventory-grid">
-
-<div class="inv-slot">
-<div class="inv-icon">⚔️</div>
-Espada
-</div>
-
-<div class="inv-slot">
-<div class="inv-icon">🛡️</div>
-Escudo
-</div>
-
-<div class="inv-slot">
-<div class="inv-icon">🪓</div>
-Hacha
-</div>
-
-<div class="inv-slot">
-<div class="inv-icon">⛏️</div>
-Pico
-</div>
-
-<div class="inv-slot">
-<div class="inv-icon">🎣</div>
-Caña
-</div>
-
-<div class="inv-slot">
-<div class="inv-icon">🧪</div>
-Poción
-</div>
+<div id="inventoryContent"></div>
 
 </div>
 
+<!-- PERSONAJE -->
+
+<div class="panel" id="characterPanel">
+
+<button class="closePanel">X</button>
+
+<h2>⚔️ Personaje</h2>
+
+<div class="statsGrid">
+
+<div class="stat">⭐ Nivel<br><b id="panelLevel">1</b></div>
+<div class="stat">❤️ Vida<br><b id="panelHp">100</b></div>
+<div class="stat">💙 Maná<br><b id="panelMana">50</b></div>
+<div class="stat">⚔️ Daño<br><b id="panelDamage">25</b></div>
+<div class="stat">🛡️ Defensa<br><b id="panelDefense">5</b></div>
+<div class="stat">👟 Velocidad<br><b id="panelSpeed">260</b></div>
+
 </div>
 
-<script src="game.js?v=100"></script>
+<h2 style="margin-top:15px">🧤 Equipamiento</h2>
+
+<div id="equipmentContent"></div>
+
+</div>
+
+<!-- MISIONES -->
+
+<div class="panel" id="questsPanel">
+
+<button class="closePanel">X</button>
+
+<h2>📜 Misiones</h2>
+
+<div id="questsContent"></div>
+
+</div>
+
+<!-- TIENDA -->
+
+<div class="panel" id="shopPanel">
+
+<button class="closePanel">X</button>
+
+<h2>🛒 Comerciante</h2>
+
+<div id="shopContent"></div>
+
+</div>
+
+<!-- NPC -->
+
+<div class="panel" id="npcPanel">
+
+<button class="closePanel">X</button>
+
+<h2 id="npcTitle">NPC</h2>
+
+<div id="npcContent"></div>
+
+</div>
+
+<div id="deathScreen">
+
+<div>
+
+<h1>☠️ Has muerto</h1>
+
+<p>Regresando a la ciudad...</p>
+
+<p id="deathTimer"></p>
+
+</div>
+
+</div>
+
+<script src="game.js?v=200"></script>
 
 </body>
 
