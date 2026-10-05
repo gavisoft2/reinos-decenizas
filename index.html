@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>Reinos de Ceniza - MVP</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="game">
+    <canvas id="world"></canvas>
+
+    <div id="hud">
+      <div class="panel">
+        <b>⚔️ Reinos de Ceniza</b>
+        <div>Nivel <span id="level">1</span> · ❤️ <span id="hp">100</span>/100 · 🪙 <span id="gold">0</span></div>
+      </div>
+      <div class="panel">
+        🪵 <span id="wood">0</span> &nbsp;
+        🪨 <span id="stone">0</span> &nbsp;
+        🟠 <span id="copper">0</span> &nbsp;
+        ⚙️ <span id="iron">0</span> &nbsp;
+        🐟 <span id="fish">0</span>
+      </div>
+    </div>
+
+    <div id="message">Muévete con WASD, flechas o los botones táctiles.</div>
+
+    <div id="controls">
+      <button data-key="ArrowUp">▲</button>
+      <div>
+        <button data-key="ArrowLeft">◀</button>
+        <button data-key="ArrowDown">▼</button>
+        <button data-key="ArrowRight">▶</button>
+      </div>
+    </div>
+  </div>
+  <script src="game.js"></script>
+</body>
+</html>
