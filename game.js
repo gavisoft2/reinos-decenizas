@@ -1,130 +1,70 @@
-/* ============================================================
+/* =========================================================
    ⚔️ REINOS DE CENIZA
-   GAME.JS — VERSION 301
-   ============================================================ */
+   GAME.JS - VERSIÓN FINAL 1.0
+   ========================================================= */
 
 "use strict";
 
-/* ============================================================
+/* =========================================================
    CANVAS
-   ============================================================ */
+   ========================================================= */
 
 const canvas =
-    document.getElementById("gameCanvas") ||
-    document.getElementById("game") ||
-    document.querySelector("canvas");
+    document.getElementById("world") ||
+    document.getElementById("gameCanvas");
 
 if (!canvas) {
-    console.error("❌ No se encontró el canvas del juego.");
+    throw new Error("No se encontró el canvas #world");
 }
 
-const ctx = canvas ? canvas.getContext("2d") : null;
+const ctx = canvas.getContext("2d");
 
-if (ctx) {
-    ctx.imageSmoothingEnabled = true;
+if (!ctx) {
+    throw new Error("No se pudo obtener el contexto del canvas");
 }
 
-/* ============================================================
-   MINIMAPA
-   ============================================================ */
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
 
-const miniCanvas =
-    document.getElementById("miniCanvas") ||
-    document.getElementById("minimapCanvas") ||
-    document.getElementById("miniMap");
+window.addEventListener("resize", resizeCanvas);
+resizeCanvas();
 
-const miniCtx = miniCanvas ? miniCanvas.getContext("2d") : null;
-
-/* ============================================================
+/* =========================================================
    MUNDO
-   ============================================================ */
+   ========================================================= */
 
 const WORLD_WIDTH = 5000;
 const WORLD_HEIGHT = 5000;
 const TILE = 64;
 
-const respawnPoint = {
-    x: WORLD_WIDTH / 2,
-    y: WORLD_HEIGHT / 2
-};
-
+const CITY_X = WORLD_WIDTH / 2;
+const CITY_Y = WORLD_HEIGHT / 2;
 const CITY_RADIUS = 520;
 
-/* ============================================================
-   TERRAIN
-   ============================================================ */
+/* =========================================================
+   GUARDADO
+   ========================================================= */
 
-const TERRAIN = {
-    GRASS: 0,
-    WATER: 1,
-    SAND: 2,
-    FOREST: 3,
-    ROCK: 4
-};
+const SAVE_KEY = "reinosDeCenizaRPG";
+const CHARACTERS_KEY = "reinosDeCenizaCharacters";
 
-/* ============================================================
-   UTILIDADES
-   ============================================================ */
+let currentCharacterId = null;
 
-function clamp(value, min, max) {
-    return Math.max(min, Math.min(max, value));
-}
-
-function random(min, max) {
-    return Math.random() * (max - min) + min;
-}
-
-function randomInt(min, max) {
-    return Math.floor(random(min, max + 1));
-}
-
-function distance(a, b) {
-    const dx = a.x - b.x;
-    const dy = a.y - b.y;
-    return Math.sqrt(dx * dx + dy * dy);
-}
-
-function normalize(x, y) {
-    const len = Math.sqrt(x * x + y * y);
-
-    if (len <= 0.0001) {
-        return {
-            x: 0,
-            y: 0
-        };
-    }
-
-    return {
-        x: x / len,
-        y: y / len
-    };
-}
-
-function randomChoice(array) {
-    if (!array || array.length === 0) return null;
-    return array[Math.floor(Math.random() * array.length)];
-}
-
-function formatNumber(number) {
-    return Math.floor(number || 0).toLocaleString("es-ES");
-}
-
-function safeNumber(value, fallback = 0) {
-    const n = Number(value);
-    return Number.isFinite(n) ? n : fallback;
-}
-
-/* ============================================================
-   JUGADOR
-   ============================================================ */
+/* =========================================================
+   PERSONAJE
+   ========================================================= */
 
 const player = {
-    x: respawnPoint.x,
-    y: respawnPoint.y,
+    x: CITY_X,
+    y: CITY_Y,
 
     radius: 22,
 
-    speed: 260,
+    name: "Aventurero",
+    gender: "Guerrero",
+    classId: "warrior",
 
     level: 1,
     xp: 0,
@@ -146,6 +86,8 @@ const player = {
     attackCooldown: 0,
     attackDelay: 0.55,
 
+    speed: 260,
+
     directionX: 0,
     directionY: 1,
 
@@ -157,42 +99,369 @@ const player = {
 
     rageTimer: 0,
 
-    kills: 0
+    criticalChance: 0.05,
+    criticalDamage: 1.5,
+
+    color: "#d9b38c",
+    hair: "cabello1"
 };
 
-/* ============================================================
-   HERRAMIENTAS
-   ============================================================ */
+/* =========================================================
+   CLASES
+   ========================================================= */
 
-const tools = {
-    axe: {
-        name: "Hacha",
-        equipped: true
+const classes = {
+
+    warrior: {
+        id: "warrior",
+        name: "Guerrero",
+        icon: "⚔️",
+
+        description:
+            "Especialista en combate cuerpo a cuerpo. Mucha vida y defensa.",
+
+        hp: 140,
+        mana: 40,
+
+        damage: 30,
+        defense: 10,
+
+        speed: 245,
+
+        weapon: "ironSword",
+        skill: "powerStrike"
     },
 
-    pickaxe: {
-        name: "Pico",
-        equipped: true
+    hunter: {
+        id: "hunter",
+        name: "Cazador",
+        icon: "🏹",
+
+        description:
+            "Rápido combatiente a distancia con gran movilidad.",
+
+        hp: 100,
+        mana: 70,
+
+        damage: 27,
+        defense: 6,
+
+        speed: 290,
+
+        weapon: "apprenticeSword",
+        skill: "rapidShot"
     },
 
-    fishingRod: {
-        name: "Caña de pescar",
-        equipped: true
+    mage: {
+        id: "mage",
+        name: "Mago",
+        icon: "🔮",
+
+        description:
+            "Domina la magia y posee una gran reserva de maná.",
+
+        hp: 80,
+        mana: 150,
+
+        damage: 38,
+        defense: 3,
+
+        speed: 235,
+
+        weapon: "apprenticeSword",
+        skill: "fireball"
+    },
+
+    assassin: {
+        id: "assassin",
+        name: "Asesino",
+        icon: "🗡️",
+
+        description:
+            "Especialista en velocidad y golpes críticos.",
+
+        hp: 95,
+        mana: 70,
+
+        damage: 36,
+        defense: 4,
+
+        speed: 310,
+
+        weapon: "apprenticeSword",
+        skill: "shadowStrike"
+    },
+
+    explorer: {
+        id: "explorer",
+        name: "Explorador",
+        icon: "🧭",
+
+        description:
+            "Aventurero equilibrado con bonificaciones de recolección.",
+
+        hp: 115,
+        mana: 70,
+
+        damage: 25,
+        defense: 7,
+
+        speed: 275,
+
+        weapon: "ironSword",
+        skill: "survival"
     }
 };
 
-const resourceTools = {
-    tree: "axe",
-    rock: "pickaxe",
-    copper: "pickaxe",
-    iron: "pickaxe"
+/* =========================================================
+   RAREZAS
+   ========================================================= */
+
+const rarityInfo = {
+
+    common: {
+        name: "Común",
+        multiplier: 1,
+        icon: "⚪"
+    },
+
+    uncommon: {
+        name: "Poco común",
+        multiplier: 1.15,
+        icon: "🟢"
+    },
+
+    rare: {
+        name: "Raro",
+        multiplier: 1.3,
+        icon: "🔵"
+    },
+
+    epic: {
+        name: "Épico",
+        multiplier: 1.5,
+        icon: "🟣"
+    },
+
+    legendary: {
+        name: "Legendario",
+        multiplier: 2,
+        icon: "🟠"
+    }
 };
 
-/* ============================================================
-   INVENTARIO ANTIGUO
-   ============================================================ */
+/* =========================================================
+   OBJETOS
+   ========================================================= */
+
+const itemDefinitions = {
+
+    ironSword: {
+        id: "ironSword",
+        name: "Espada de Hierro",
+        type: "weapon",
+        slot: "weapon",
+        level: 1,
+        rarity: "common",
+        damage: 10,
+        defense: 0,
+        icon: "⚔️",
+        description: "Una espada sencilla de hierro."
+    },
+
+    apprenticeSword: {
+        id: "apprenticeSword",
+        name: "Espada de Aprendiz",
+        type: "weapon",
+        slot: "weapon",
+        level: 1,
+        rarity: "common",
+        damage: 8,
+        defense: 0,
+        icon: "🗡️",
+        description: "Arma utilizada por jóvenes aventureros."
+    },
+
+    steelSword: {
+        id: "steelSword",
+        name: "Espada de Acero",
+        type: "weapon",
+        slot: "weapon",
+        level: 5,
+        rarity: "uncommon",
+        damage: 20,
+        defense: 0,
+        icon: "⚔️",
+        description: "Una espada mucho más resistente."
+    },
+
+    leatherHelmet: {
+        id: "leatherHelmet",
+        name: "Casco de Cuero",
+        type: "armor",
+        slot: "helmet",
+        level: 1,
+        rarity: "common",
+        damage: 0,
+        defense: 3,
+        icon: "🪖",
+        description: "Protección ligera."
+    },
+
+    ironHelmet: {
+        id: "ironHelmet",
+        name: "Casco de Hierro",
+        type: "armor",
+        slot: "helmet",
+        level: 3,
+        rarity: "uncommon",
+        damage: 0,
+        defense: 7,
+        icon: "🪖",
+        description: "Casco fabricado con hierro."
+    },
+
+    goblinHelmet: {
+        id: "goblinHelmet",
+        name: "Casco de Goblin",
+        type: "armor",
+        slot: "helmet",
+        level: 5,
+        rarity: "rare",
+        damage: 0,
+        defense: 10,
+        icon: "👺",
+        description: "Un casco tomado de un goblin."
+    },
+
+    leatherArmor: {
+        id: "leatherArmor",
+        name: "Armadura de Cuero",
+        type: "armor",
+        slot: "armor",
+        level: 1,
+        rarity: "common",
+        damage: 0,
+        defense: 5,
+        icon: "🥋",
+        description: "Armadura flexible de cuero."
+    },
+
+    ironArmor: {
+        id: "ironArmor",
+        name: "Armadura de Hierro",
+        type: "armor",
+        slot: "armor",
+        level: 5,
+        rarity: "uncommon",
+        damage: 0,
+        defense: 12,
+        icon: "🛡️",
+        description: "Pesada armadura de hierro."
+    },
+
+    leatherBoots: {
+        id: "leatherBoots",
+        name: "Botas de Cuero",
+        type: "armor",
+        slot: "boots",
+        level: 1,
+        rarity: "common",
+        damage: 0,
+        defense: 2,
+        icon: "🥾",
+        description: "Botas cómodas para viajar."
+    },
+
+    goblinBoots: {
+        id: "goblinBoots",
+        name: "Botas de Goblin",
+        type: "armor",
+        slot: "boots",
+        level: 5,
+        rarity: "rare",
+        damage: 0,
+        defense: 6,
+        icon: "🥾",
+        description: "Botas tomadas de un goblin."
+    },
+
+    woodenShield: {
+        id: "woodenShield",
+        name: "Escudo de Madera",
+        type: "armor",
+        slot: "shield",
+        level: 1,
+        rarity: "common",
+        damage: 0,
+        defense: 5,
+        icon: "🛡️",
+        description: "Un escudo sencillo de madera."
+    },
+
+    ironShield: {
+        id: "ironShield",
+        name: "Escudo de Hierro",
+        type: "armor",
+        slot: "shield",
+        level: 5,
+        rarity: "uncommon",
+        damage: 0,
+        defense: 12,
+        icon: "🛡️",
+        description: "Un resistente escudo de hierro."
+    }
+};
+
+/* =========================================================
+   EQUIPAMIENTO
+   ========================================================= */
+
+let equipment = {
+
+    weapon: cloneItem("ironSword"),
+    helmet: cloneItem("ironHelmet"),
+    armor: cloneItem("ironArmor"),
+    boots: cloneItem("leatherBoots"),
+    shield: cloneItem("woodenShield")
+};
+
+function cloneItem(id) {
+
+    const def = itemDefinitions[id];
+
+    if (!def) return null;
+
+    return {
+        uid:
+            "equip_" +
+            id +
+            "_" +
+            Math.random().toString(36).slice(2),
+
+        itemId: id,
+
+        ...def
+    };
+}
+
+/* =========================================================
+   INVENTARIO
+   ========================================================= */
+
+let inventorySlots = 30;
+
+const INVENTORY_EXPANSION_COST = 500;
+const INVENTORY_EXPANSION_AMOUNT = 5;
+
+let itemInventory = [];
+
+/* =========================================================
+   RECURSOS
+   ========================================================= */
 
 const inventory = {
+
     gold: 150,
 
     wood: 0,
@@ -213,634 +482,106 @@ const inventory = {
     bait: 0
 };
 
-/* ============================================================
-   INVENTARIO NUEVO
-   ============================================================ */
+/* =========================================================
+   HERRAMIENTAS
+   ========================================================= */
 
-let inventorySlots = 30;
+const tools = {
 
-const INVENTORY_EXPANSION_COST = 500;
-const INVENTORY_EXPANSION_AMOUNT = 5;
-
-let itemInventory = [];
-
-/* ============================================================
-   RAREZAS
-   ============================================================ */
-
-const rarityInfo = {
-
-    common: {
-        name: "Común",
-        multiplier: 1,
-        color: "#d0d0d0"
+    axe: {
+        name: "Hacha",
+        equipped: true
     },
 
-    uncommon: {
-        name: "Poco común",
-        multiplier: 1.15,
-        color: "#55d66b"
+    pickaxe: {
+        name: "Pico",
+        equipped: true
     },
 
-    rare: {
-        name: "Raro",
-        multiplier: 1.30,
-        color: "#4fa8ff"
-    },
-
-    epic: {
-        name: "Épico",
-        multiplier: 1.50,
-        color: "#b86cff"
-    },
-
-    legendary: {
-        name: "Legendario",
-        multiplier: 2,
-        color: "#ffad3d"
+    fishingRod: {
+        name: "Caña de pescar",
+        equipped: true
     }
 };
 
-/* ============================================================
-   GENERADOR DE UID
-   ============================================================ */
+const resourceTools = {
 
-function createUID() {
-    return (
-        Date.now().toString(36) +
-        "_" +
-        Math.random().toString(36).slice(2, 10)
-    );
-}
-
-/* ============================================================
-   DEFINICIONES DE OBJETOS
-   ============================================================ */
-
-const itemDefinitions = {
-
-    espadaHierro: {
-        id: "espadaHierro",
-        name: "Espada de Hierro",
-        type: "weapon",
-        level: 1,
-        rarity: "common",
-        damage: 8,
-        defense: 0,
-        icon: "⚔️",
-        description: "Una espada sencilla de hierro."
-    },
-
-    espadaAprendiz: {
-        id: "espadaAprendiz",
-        name: "Espada de Aprendiz",
-        type: "weapon",
-        level: 1,
-        rarity: "uncommon",
-        damage: 12,
-        defense: 0,
-        icon: "🗡️",
-        description: "Una espada utilizada por jóvenes guerreros."
-    },
-
-    espadaAcero: {
-        id: "espadaAcero",
-        name: "Espada de Acero",
-        type: "weapon",
-        level: 3,
-        rarity: "rare",
-        damage: 20,
-        defense: 0,
-        icon: "⚔️",
-        description: "Una espada fabricada con acero resistente."
-    },
-
-    cascoCuero: {
-        id: "cascoCuero",
-        name: "Casco de Cuero",
-        type: "helmet",
-        level: 1,
-        rarity: "common",
-        damage: 0,
-        defense: 3,
-        icon: "🪖",
-        description: "Protección ligera de cuero."
-    },
-
-    cascoHierro: {
-        id: "cascoHierro",
-        name: "Casco de Hierro",
-        type: "helmet",
-        level: 1,
-        rarity: "uncommon",
-        damage: 0,
-        defense: 7,
-        icon: "⛑️",
-        description: "Un casco de hierro básico."
-    },
-
-    cascoGoblin: {
-        id: "cascoGoblin",
-        name: "Casco de Goblin",
-        type: "helmet",
-        level: 3,
-        rarity: "rare",
-        damage: 0,
-        defense: 11,
-        icon: "👹",
-        description: "Un casco recuperado de un goblin."
-    },
-
-    armaduraCuero: {
-        id: "armaduraCuero",
-        name: "Armadura de Cuero",
-        type: "armor",
-        level: 1,
-        rarity: "common",
-        damage: 0,
-        defense: 6,
-        icon: "🥋",
-        description: "Armadura ligera de cuero."
-    },
-
-    armaduraHierro: {
-        id: "armaduraHierro",
-        name: "Armadura de Hierro",
-        type: "armor",
-        level: 2,
-        rarity: "uncommon",
-        damage: 0,
-        defense: 12,
-        icon: "🛡️",
-        description: "Una sólida armadura de hierro."
-    },
-
-    botasCuero: {
-        id: "botasCuero",
-        name: "Botas de Cuero",
-        type: "boots",
-        level: 1,
-        rarity: "common",
-        damage: 0,
-        defense: 3,
-        icon: "🥾",
-        description: "Botas resistentes para viajar."
-    },
-
-    botasGoblin: {
-        id: "botasGoblin",
-        name: "Botas de Goblin",
-        type: "boots",
-        level: 3,
-        rarity: "rare",
-        damage: 0,
-        defense: 7,
-        icon: "🥾",
-        description: "Botas extrañas fabricadas por goblins."
-    },
-
-    escudoMadera: {
-        id: "escudoMadera",
-        name: "Escudo de Madera",
-        type: "shield",
-        level: 1,
-        rarity: "common",
-        damage: 0,
-        defense: 5,
-        icon: "🛡️",
-        description: "Un pequeño escudo de madera."
-    },
-
-    escudoHierro: {
-        id: "escudoHierro",
-        name: "Escudo de Hierro",
-        type: "shield",
-        level: 3,
-        rarity: "rare",
-        damage: 0,
-        defense: 13,
-        icon: "🛡️",
-        description: "Un escudo pesado de hierro."
-    }
+    tree: "axe",
+    rock: "pickaxe",
+    copper: "pickaxe",
+    iron: "pickaxe"
 };
 
-/* ============================================================
-   EQUIPO
-   ============================================================ */
-
-const equipment = {
-    weapon: {
-        itemId: "espadaHierro",
-        uid: "equipped_weapon"
-    },
-
-    helmet: {
-        itemId: "cascoHierro",
-        uid: "equipped_helmet"
-    },
-
-    armor: {
-        itemId: "armaduraHierro",
-        uid: "equipped_armor"
-    },
-
-    boots: {
-        itemId: "botasCuero",
-        uid: "equipped_boots"
-    },
-
-    shield: {
-        itemId: "escudoMadera",
-        uid: "equipped_shield"
-    }
-};
-
-/* ============================================================
-   NOMBRES DE SLOTS
-   ============================================================ */
-
-const equipmentSlotNames = {
-    weapon: "Arma",
-    helmet: "Casco",
-    armor: "Armadura",
-    boots: "Botas",
-    shield: "Escudo"
-};
-
-/* ============================================================
-   ESTADÍSTICAS DE OBJETO
-   ============================================================ */
-
-function getItemStats(definition) {
-
-    if (!definition) {
-        return {
-            damage: 0,
-            defense: 0
-        };
-    }
-
-    const rarity =
-        rarityInfo[definition.rarity] ||
-        rarityInfo.common;
-
-    return {
-        damage: Math.round(
-            safeNumber(definition.damage) *
-            rarity.multiplier
-        ),
-
-        defense: Math.round(
-            safeNumber(definition.defense) *
-            rarity.multiplier
-        )
-    };
-}
-
-/* ============================================================
-   CREAR OBJETO
-   ============================================================ */
-
-function createItem(itemId, rarityOverride = null) {
-
-    const definition = itemDefinitions[itemId];
-
-    if (!definition) {
-        return null;
-    }
-
-    const item = {
-        uid: createUID(),
-        itemId: definition.id,
-        name: definition.name,
-        type: definition.type,
-        level: definition.level,
-        rarity: rarityOverride || definition.rarity,
-        damage: definition.damage,
-        defense: definition.defense,
-        icon: definition.icon,
-        description: definition.description
-    };
-
-    return item;
-}
-
-/* ============================================================
-   INVENTARIO
-   ============================================================ */
-
-function inventoryUsedSlots() {
-    return itemInventory.length;
-}
-
-function inventoryHasSpace(amount = 1) {
-    return inventoryUsedSlots() + amount <= inventorySlots;
-}
-
-function addItem(itemId, amount = 1, rarityOverride = null) {
-
-    amount = Math.max(1, Math.floor(amount));
-
-    if (!inventoryHasSpace(amount)) {
-        showMessage("🎒 Inventario lleno");
-        return false;
-    }
-
-    for (let i = 0; i < amount; i++) {
-
-        const item = createItem(
-            itemId,
-            rarityOverride
-        );
-
-        if (item) {
-            itemInventory.push(item);
-        }
-    }
-
-    markInventoryDirty();
-
-    return true;
-}
-
-function addExistingItem(item) {
-
-    if (!item) return false;
-
-    if (!inventoryHasSpace(1)) {
-        showMessage("🎒 Inventario lleno");
-        return false;
-    }
-
-    if (!item.uid) {
-        item.uid = createUID();
-    }
-
-    itemInventory.push(item);
-
-    markInventoryDirty();
-
-    return true;
-}
-
-function removeItemByUid(uid) {
-
-    const index = itemInventory.findIndex(
-        item => item.uid === uid
-    );
-
-    if (index === -1) {
-        return null;
-    }
-
-    const removed = itemInventory.splice(index, 1)[0];
-
-    markInventoryDirty();
-
-    return removed;
-}
-
-/* ============================================================
-   EXPANDIR INVENTARIO
-   ============================================================ */
-
-function expandInventory() {
-
-    if (inventory.gold < INVENTORY_EXPANSION_COST) {
-
-        showMessage(
-            `❌ Necesitas ${INVENTORY_EXPANSION_COST} monedas`
-        );
-
-        return false;
-    }
-
-    inventory.gold -= INVENTORY_EXPANSION_COST;
-
-    inventorySlots += INVENTORY_EXPANSION_AMOUNT;
-
-    showMessage(
-        `🎒 Inventario ampliado a ${inventorySlots} espacios`
-    );
-
-    markInventoryDirty();
-
-    saveGame();
-
-    return true;
-}
-
-/* ============================================================
-   INVENTARIO DIRTY
-   ============================================================ */
-
-let inventoryDirty = true;
-
-function markInventoryDirty() {
-    inventoryDirty = true;
-}
-
-/* ============================================================
-   EQUIPAMIENTO
-   ============================================================ */
-
-function getEquipmentDefinition(slot) {
-
-    const equipped = equipment[slot];
-
-    if (!equipped) {
-        return null;
-    }
-
-    return itemDefinitions[equipped.itemId] || null;
-}
-
-function getEquipmentItem(slot) {
-
-    const equipped = equipment[slot];
-
-    if (!equipped) {
-        return null;
-    }
-
-    const definition =
-        itemDefinitions[equipped.itemId];
-
-    if (!definition) {
-        return null;
-    }
-
-    return {
-        uid: equipped.uid,
-        itemId: definition.id,
-        name: definition.name,
-        type: definition.type,
-        level: definition.level,
-        rarity: equipped.rarity || definition.rarity,
-        damage: definition.damage,
-        defense: definition.defense,
-        icon: definition.icon,
-        description: definition.description
-    };
-}
-
-/* ============================================================
+/* =========================================================
    ESTADÍSTICAS
-   ============================================================ */
+   ========================================================= */
 
 function recalculatePlayerStats() {
 
-    player.damage = player.baseDamage;
-    player.defense = player.baseDefense;
+    const cls = classes[player.classId] || classes.warrior;
 
-    for (const slot in equipment) {
+    player.maxHp = cls.hp;
+    player.maxMana = cls.mana;
 
-        const item = getEquipmentItem(slot);
+    player.baseDamage = cls.damage;
+    player.baseDefense = cls.defense;
+    player.speed = cls.speed;
 
-        if (!item) continue;
+    let damage = player.baseDamage;
+    let defense = player.baseDefense;
 
-        const definition =
-            itemDefinitions[item.itemId];
+    Object.values(equipment).forEach(item => {
 
-        if (!definition) continue;
+        if (!item) return;
 
-        const stats = getItemStats({
-            ...definition,
-            rarity: item.rarity || definition.rarity
-        });
+        const rarity =
+            rarityInfo[item.rarity] ||
+            rarityInfo.common;
 
-        player.damage += stats.damage;
-        player.defense += stats.defense;
+        damage += (item.damage || 0) * rarity.multiplier;
+        defense += (item.defense || 0) * rarity.multiplier;
+    });
+
+    player.damage = Math.round(damage);
+    player.defense = Math.round(defense);
+
+    if (player.hp > player.maxHp) {
+        player.hp = player.maxHp;
     }
 
-    player.damage = Math.round(player.damage);
-    player.defense = Math.round(player.defense);
+    if (player.mana > player.maxMana) {
+        player.mana = player.maxMana;
+    }
+}
 
-    player.hp = clamp(
-        player.hp,
-        0,
-        player.maxHp
-    );
+/* =========================================================
+   INVENTARIO FUNCIONES
+   ========================================================= */
 
-    player.mana = clamp(
-        player.mana,
-        0,
-        player.maxMana
+function inventoryUsedSlots() {
+
+    return itemInventory.reduce(
+        (total, item) =>
+            total + (item.quantity || 1),
+        0
     );
 }
 
-/* ============================================================
-   EQUIPAR
-   ============================================================ */
+function inventoryHasSpace(amount = 1) {
 
-function equipItem(uid) {
-
-    const index = itemInventory.findIndex(
-        item => item.uid === uid
+    return (
+        inventoryUsedSlots() + amount <=
+        inventorySlots
     );
-
-    if (index === -1) {
-        showMessage("❌ Objeto no encontrado");
-        return false;
-    }
-
-    const item = itemInventory[index];
-
-    const definition =
-        itemDefinitions[item.itemId];
-
-    if (!definition) {
-        showMessage("❌ Objeto inválido");
-        return false;
-    }
-
-    if (player.level < definition.level) {
-
-        showMessage(
-            `🔒 Necesitas nivel ${definition.level}`
-        );
-
-        return false;
-    }
-
-    const slot = definition.type;
-
-    if (!equipment[slot]) {
-
-        showMessage(
-            "❌ Este objeto no puede equiparse"
-        );
-
-        return false;
-    }
-
-    const oldEquipment =
-        getEquipmentItem(slot);
-
-    /*
-       Si existe equipo anterior necesitamos espacio
-       antes de reemplazarlo.
-    */
-
-    if (oldEquipment && !inventoryHasSpace(1)) {
-
-        showMessage(
-            "🎒 Necesitas un espacio libre para cambiar el equipo"
-        );
-
-        return false;
-    }
-
-    /*
-       Quitamos el nuevo objeto del inventario.
-    */
-
-    itemInventory.splice(index, 1);
-
-    /*
-       El equipo anterior vuelve al inventario.
-    */
-
-    if (oldEquipment) {
-
-        itemInventory.push({
-            ...oldEquipment,
-            uid: createUID()
-        });
-    }
-
-    equipment[slot] = {
-        itemId: item.itemId,
-        uid: item.uid,
-        rarity: item.rarity
-    };
-
-    recalculatePlayerStats();
-
-    showMessage(
-        `⚔️ Equipaste ${definition.name}`
-    );
-
-    markInventoryDirty();
-
-    saveGame();
-
-    closeItemDetails();
-
-    return true;
 }
 
-/* ============================================================
-   DESEQUIPAR
-   ============================================================ */
+function addItem(itemId, amount = 1, rarity = null) {
 
-function unequipItem(slot) {
-
-    if (!equipment[slot]) {
+    if (!itemDefinitions[itemId]) {
         return false;
     }
 
-    if (!inventoryHasSpace(1)) {
+    if (!inventoryHasSpace(amount)) {
 
         showMessage(
             "🎒 Inventario lleno"
@@ -849,237 +590,441 @@ function unequipItem(slot) {
         return false;
     }
 
-    const item = getEquipmentItem(slot);
+    for (let i = 0; i < amount; i++) {
 
-    if (!item) {
-        equipment[slot] = null;
-        recalculatePlayerStats();
-        saveGame();
-        return true;
+        const def = itemDefinitions[itemId];
+
+        itemInventory.push({
+
+            uid:
+                "item_" +
+                Date.now() +
+                "_" +
+                Math.random()
+                    .toString(36)
+                    .slice(2),
+
+            itemId,
+
+            ...def,
+
+            rarity:
+                rarity ||
+                def.rarity
+        });
+    }
+
+    saveGame();
+
+    return true;
+}
+
+function removeItemByUid(uid) {
+
+    const index =
+        itemInventory.findIndex(
+            item => item.uid === uid
+        );
+
+    if (index === -1) return null;
+
+    return itemInventory.splice(index, 1)[0];
+}
+
+function expandInventory() {
+
+    if (
+        inventory.gold <
+        INVENTORY_EXPANSION_COST
+    ) {
+
+        showMessage(
+            "❌ Necesitas 500 monedas."
+        );
+
+        return;
+    }
+
+    inventory.gold -=
+        INVENTORY_EXPANSION_COST;
+
+    inventorySlots +=
+        INVENTORY_EXPANSION_AMOUNT;
+
+    showMessage(
+        "🎒 Inventario ampliado a " +
+        inventorySlots +
+        " espacios."
+    );
+
+    saveGame();
+
+    renderInventoryPanel();
+    updateUI();
+}
+
+/* =========================================================
+   POTIONES
+   ========================================================= */
+
+function usePotion() {
+
+    if (inventory.potions <= 0) {
+
+        showMessage(
+            "No tienes pociones."
+        );
+
+        return;
+    }
+
+    if (player.hp >= player.maxHp) {
+
+        showMessage(
+            "Tu vida ya está completa."
+        );
+
+        return;
+    }
+
+    inventory.potions--;
+
+    player.hp = Math.min(
+        player.maxHp,
+        player.hp + 60
+    );
+
+    showMessage(
+        "🧪 Has recuperado vida."
+    );
+
+    saveGame();
+}
+
+/* =========================================================
+   EQUIPAR
+   ========================================================= */
+
+function equipItem(uid) {
+
+    const item =
+        itemInventory.find(
+            x => x.uid === uid
+        );
+
+    if (!item) return;
+
+    if (player.level < item.level) {
+
+        showMessage(
+            "🔒 Necesitas nivel " +
+            item.level +
+            "."
+        );
+
+        return;
+    }
+
+    const slot = item.slot;
+
+    if (!slot) {
+
+        showMessage(
+            "Este objeto no se puede equipar."
+        );
+
+        return;
+    }
+
+    const oldItem =
+        equipment[slot];
+
+    /*
+       Si hay objeto equipado, necesitamos
+       espacio antes de reemplazarlo.
+    */
+
+    if (oldItem && !inventoryHasSpace(1)) {
+
+        showMessage(
+            "🎒 Necesitas espacio para guardar el objeto equipado."
+        );
+
+        return;
+    }
+
+    const index =
+        itemInventory.findIndex(
+            x => x.uid === uid
+        );
+
+    if (index === -1) return;
+
+    itemInventory.splice(index, 1);
+
+    if (oldItem) {
+
+        itemInventory.push({
+            ...oldItem,
+            uid:
+                "item_" +
+                Date.now() +
+                "_" +
+                Math.random()
+                    .toString(36)
+                    .slice(2)
+        });
+    }
+
+    equipment[slot] = {
+        ...item
+    };
+
+    recalculatePlayerStats();
+
+    showMessage(
+        "⚔️ Equipaste " +
+        item.name
+    );
+
+    saveGame();
+
+    closeItemDetails();
+    renderInventoryPanel();
+    updateUI();
+}
+
+/* =========================================================
+   DESEQUIPAR
+   ========================================================= */
+
+function unequipItem(slot) {
+
+    const item =
+        equipment[slot];
+
+    if (!item) return;
+
+    if (!inventoryHasSpace()) {
+
+        showMessage(
+            "🎒 Inventario lleno."
+        );
+
+        return;
     }
 
     itemInventory.push({
+
         ...item,
-        uid: createUID()
+
+        uid:
+            "item_" +
+            Date.now() +
+            "_" +
+            Math.random()
+                .toString(36)
+                .slice(2)
     });
 
     equipment[slot] = null;
 
     recalculatePlayerStats();
 
-    showMessage(
-        `🛡️ Desequipaste ${item.name}`
-    );
-
-    markInventoryDirty();
-
     saveGame();
 
-    closeItemDetails();
+    renderInventoryPanel();
+    updateUI();
 
-    return true;
+    showMessage(
+        "Desequipaste " +
+        item.name
+    );
 }
 
-/* ============================================================
+/* =========================================================
    DETALLES DEL OBJETO
-   ============================================================ */
+   ========================================================= */
 
 function openItemDetails(uid) {
 
-    const item = itemInventory.find(
-        item => item.uid === uid
-    );
+    const item =
+        itemInventory.find(
+            x => x.uid === uid
+        );
 
     if (!item) return;
 
-    let panel =
-        document.getElementById("itemDetailsPanel");
+    closeItemDetails();
 
-    if (!panel) {
+    const panel =
+        document.createElement("div");
 
-        panel = document.createElement("div");
+    panel.id =
+        "itemDetailsPanel";
 
-        panel.id = "itemDetailsPanel";
-
-        Object.assign(panel.style, {
-            position: "fixed",
-            left: "50%",
-            top: "50%",
-            transform: "translate(-50%, -50%)",
-            width: "min(92vw, 390px)",
-            maxHeight: "85vh",
-            overflowY: "auto",
-            background: "rgba(15,18,25,0.97)",
-            border: "2px solid #8f6b32",
-            borderRadius: "16px",
-            padding: "18px",
-            zIndex: "99999",
-            color: "#fff",
-            boxShadow: "0 10px 40px rgba(0,0,0,.7)",
-            fontFamily: "Arial, sans-serif"
-        });
-
-        document.body.appendChild(panel);
-    }
-
-    const definition =
-        itemDefinitions[item.itemId];
-
-    if (!definition) return;
+    panel.style.cssText = `
+        position:fixed;
+        left:50%;
+        top:50%;
+        transform:translate(-50%,-50%);
+        width:min(90vw,380px);
+        max-height:85vh;
+        overflow:auto;
+        background:rgba(12,15,22,.98);
+        border:2px solid #8c6b35;
+        border-radius:18px;
+        padding:20px;
+        z-index:99999;
+        color:white;
+        text-align:center;
+        box-shadow:0 15px 50px rgba(0,0,0,.8);
+        font-family:Arial,sans-serif;
+    `;
 
     const rarity =
         rarityInfo[item.rarity] ||
         rarityInfo.common;
 
-    const stats = getItemStats({
-        ...definition,
-        rarity: item.rarity
-    });
-
-    const isEquipped =
-        Object.values(equipment)
-            .some(
-                e =>
-                    e &&
-                    e.uid === item.uid
-            );
+    const canEquip =
+        player.level >= item.level;
 
     panel.innerHTML = `
-        <div style="text-align:center">
 
-            <div style="
-                font-size:58px;
-                margin-bottom:8px;
-            ">
-                ${item.icon}
+        <div style="
+            font-size:64px;
+            margin-bottom:8px;
+        ">
+            ${item.icon}
+        </div>
+
+        <h2 style="
+            margin:5px 0;
+        ">
+            ${item.name}
+        </h2>
+
+        <div style="
+            color:#d9b56d;
+            margin-bottom:12px;
+        ">
+            ${rarity.icon}
+            ${rarity.name}
+        </div>
+
+        <div style="
+            background:#1b2029;
+            border-radius:12px;
+            padding:12px;
+            text-align:left;
+            line-height:1.7;
+        ">
+
+            <div>
+                📦 Tipo:
+                ${item.type}
             </div>
 
-            <div style="
-                font-size:23px;
-                font-weight:bold;
-                color:${rarity.color};
-            ">
-                ${item.name}
+            <div>
+                ⭐ Nivel requerido:
+                ${item.level}
             </div>
 
-            <div style="
-                margin-top:5px;
-                color:${rarity.color};
-                font-weight:bold;
-            ">
-                ${rarity.name}
-            </div>
+            ${
+                item.damage
+                    ? `
+                    <div>
+                        ⚔️ Ataque:
+                        ${Math.round(
+                            item.damage *
+                            rarity.multiplier
+                        )}
+                    </div>
+                    `
+                    : ""
+            }
 
-            <div style="
-                margin-top:10px;
-                opacity:.85;
-            ">
-                Nivel requerido: ${item.level}
-            </div>
-
-            <div style="
-                margin-top:4px;
-                opacity:.85;
-            ">
-                Tipo: ${equipmentSlotNames[item.type] || item.type}
-            </div>
-
-            <div style="
-                margin-top:16px;
-                padding:12px;
-                background:rgba(255,255,255,.06);
-                border-radius:10px;
-                text-align:left;
-            ">
-
-                ${
-                    stats.damage > 0
-                        ? `<div>⚔️ Ataque: <b>+${stats.damage}</b></div>`
-                        : ""
-                }
-
-                ${
-                    stats.defense > 0
-                        ? `<div style="margin-top:6px">
-                            🛡️ Defensa:
-                            <b>+${stats.defense}</b>
-                           </div>`
-                        : ""
-                }
-
-                <div style="
-                    margin-top:12px;
-                    line-height:1.5;
-                    opacity:.85;
-                ">
-                    ${item.description}
-                </div>
-
-            </div>
-
-            <div style="
-                display:flex;
-                gap:8px;
-                margin-top:15px;
-            ">
-
-                ${
-                    isEquipped
-                        ? `
-                            <button
-                                onclick="unequipItem('${item.type}')"
-                                style="
-                                    flex:1;
-                                    padding:12px;
-                                    border:0;
-                                    border-radius:10px;
-                                    background:#7b2525;
-                                    color:white;
-                                    font-weight:bold;
-                                "
-                            >
-                                DESEQUIPAR
-                            </button>
-                        `
-                        : `
-                            <button
-                                onclick="equipItem('${item.uid}')"
-                                style="
-                                    flex:1;
-                                    padding:12px;
-                                    border:0;
-                                    border-radius:10px;
-                                    background:#9b742e;
-                                    color:white;
-                                    font-weight:bold;
-                                "
-                            >
-                                EQUIPAR
-                            </button>
-                        `
-                }
-
-                <button
-                    onclick="closeItemDetails()"
-                    style="
-                        flex:1;
-                        padding:12px;
-                        border:0;
-                        border-radius:10px;
-                        background:#333;
-                        color:white;
-                        font-weight:bold;
-                    "
-                >
-                    CERRAR
-                </button>
-
-            </div>
+            ${
+                item.defense
+                    ? `
+                    <div>
+                        🛡️ Defensa:
+                        ${Math.round(
+                            item.defense *
+                            rarity.multiplier
+                        )}
+                    </div>
+                    `
+                    : ""
+            }
 
         </div>
+
+        <p style="
+            margin:15px 5px;
+            color:#c9c9c9;
+        ">
+            ${item.description}
+        </p>
+
+        <button
+            id="itemActionButton"
+            style="
+                width:100%;
+                padding:14px;
+                border:0;
+                border-radius:10px;
+                background:${
+                    canEquip
+                    ? "#7b5cff"
+                    : "#555"
+                };
+                color:white;
+                font-size:16px;
+                font-weight:bold;
+                margin-top:8px;
+            "
+            ${canEquip ? "" : "disabled"}
+        >
+            ⚔️ EQUIPAR
+        </button>
+
+        <button
+            id="itemCloseButton"
+            style="
+                width:100%;
+                padding:12px;
+                border:0;
+                border-radius:10px;
+                background:#292f39;
+                color:white;
+                font-size:15px;
+                margin-top:8px;
+            "
+        >
+            CERRAR
+        </button>
     `;
 
-    panel.style.display = "block";
+    document.body.appendChild(panel);
+
+    document
+        .getElementById(
+            "itemActionButton"
+        )
+        ?.addEventListener(
+            "click",
+            () => equipItem(uid)
+        );
+
+    document
+        .getElementById(
+            "itemCloseButton"
+        )
+        ?.addEventListener(
+            "click",
+            closeItemDetails
+        );
 }
 
 function closeItemDetails() {
@@ -1090,87 +1035,198 @@ function closeItemDetails() {
         );
 
     if (panel) {
-        panel.style.display = "none";
+        panel.remove();
     }
 }
 
-/* ============================================================
-   INVENTARIO PANEL
-   ============================================================ */
-
-function getInventoryPanel() {
-
-    return (
-        document.getElementById("inventoryPanel") ||
-        document.getElementById("inventory")
-    );
-}
+/* =========================================================
+   INVENTARIO UI
+   ========================================================= */
 
 function renderInventoryPanel() {
 
-    const panel = getInventoryPanel();
+    let panel =
+        document.getElementById(
+            "inventoryPanel"
+        );
 
-    if (!panel) return;
+    if (!panel) {
+
+        panel =
+            document.createElement("div");
+
+        panel.id =
+            "inventoryPanel";
+
+        panel.style.cssText = `
+            position:fixed;
+            left:50%;
+            top:50%;
+            transform:translate(-50%,-50%);
+            width:min(94vw,520px);
+            max-height:88vh;
+            overflow:auto;
+            background:rgba(10,13,18,.97);
+            border:2px solid #80652e;
+            border-radius:18px;
+            padding:14px;
+            z-index:5000;
+            color:white;
+            display:none;
+            font-family:Arial,sans-serif;
+        `;
+
+        document.body.appendChild(panel);
+    }
+
+    if (
+        panel.style.display === "none"
+    ) {
+        return;
+    }
 
     panel.innerHTML = "";
 
-    const title = document.createElement("div");
+    const title =
+        document.createElement("h2");
 
-    title.style.cssText = `
-        text-align:center;
-        font-size:20px;
-        font-weight:bold;
-        margin-bottom:10px;
-    `;
+    title.textContent =
+        "🎒 Inventario " +
+        inventoryUsedSlots() +
+        "/" +
+        inventorySlots;
 
-    title.innerHTML =
-        `🎒 Inventario ${inventoryUsedSlots()}/${inventorySlots}`;
+    title.style.textAlign = "center";
 
     panel.appendChild(title);
 
-    const gold = document.createElement("div");
+    const equipmentTitle =
+        document.createElement("div");
 
-    gold.style.cssText = `
-        text-align:center;
-        margin-bottom:10px;
-        color:#ffd45c;
-        font-weight:bold;
+    equipmentTitle.innerHTML = `
+        <div style="
+            text-align:center;
+            margin:10px 0;
+            color:#d8b86a;
+            font-weight:bold;
+        ">
+            ⚔️ EQUIPAMIENTO
+        </div>
     `;
 
-    gold.textContent =
-        `🪙 ${formatNumber(inventory.gold)} monedas`;
+    panel.appendChild(
+        equipmentTitle
+    );
 
-    panel.appendChild(gold);
+    const equipGrid =
+        document.createElement("div");
 
-    const grid = document.createElement("div");
+    equipGrid.style.cssText = `
+        display:grid;
+        grid-template-columns:repeat(5,1fr);
+        gap:6px;
+    `;
+
+    const slots = [
+        ["weapon", "⚔️"],
+        ["helmet", "🪖"],
+        ["armor", "🥋"],
+        ["boots", "🥾"],
+        ["shield", "🛡️"]
+    ];
+
+    slots.forEach(([slot, icon]) => {
+
+        const item =
+            equipment[slot];
+
+        const button =
+            document.createElement("button");
+
+        button.style.cssText = `
+            min-height:64px;
+            background:#202631;
+            border:1px solid #65522d;
+            border-radius:10px;
+            color:white;
+            font-size:24px;
+        `;
+
+        button.innerHTML =
+            item
+                ? item.icon
+                : icon;
+
+        if (item) {
+
+            button.title =
+                item.name;
+
+            button.onclick =
+                () => {
+
+                    if (
+                        confirm(
+                            "¿Desequipar " +
+                            item.name +
+                            "?"
+                        )
+                    ) {
+
+                        unequipItem(slot);
+                    }
+                };
+        }
+
+        equipGrid.appendChild(
+            button
+        );
+    });
+
+    panel.appendChild(
+        equipGrid
+    );
+
+    const divider =
+        document.createElement("div");
+
+    divider.style.cssText = `
+        height:1px;
+        background:#383f4b;
+        margin:14px 0;
+    `;
+
+    panel.appendChild(divider);
+
+    const grid =
+        document.createElement("div");
 
     grid.style.cssText = `
         display:grid;
-        grid-template-columns:repeat(5, 1fr);
+        grid-template-columns:repeat(5,1fr);
         gap:6px;
-        width:100%;
     `;
 
-    for (let i = 0; i < inventorySlots; i++) {
+    for (
+        let i = 0;
+        i < inventorySlots;
+        i++
+    ) {
 
-        const slot =
-            document.createElement("div");
+        const item =
+            itemInventory[i];
 
-        slot.style.cssText = `
-            aspect-ratio:1/1;
-            min-width:0;
+        const cell =
+            document.createElement("button");
+
+        cell.style.cssText = `
+            min-height:70px;
+            background:#181d25;
+            border:1px solid #343b48;
+            border-radius:9px;
+            color:white;
             position:relative;
-            display:flex;
-            align-items:center;
-            justify-content:center;
-            border:1px solid rgba(255,255,255,.16);
-            border-radius:8px;
-            background:rgba(0,0,0,.28);
-            cursor:pointer;
-            user-select:none;
         `;
-
-        const item = itemInventory[i];
 
         if (item) {
 
@@ -1178,107 +1234,370 @@ function renderInventoryPanel() {
                 rarityInfo[item.rarity] ||
                 rarityInfo.common;
 
-            slot.style.border =
-                `2px solid ${rarity.color}`;
-
-            slot.innerHTML = `
+            cell.innerHTML = `
                 <div style="
-                    font-size:28px;
+                    font-size:27px;
                 ">
                     ${item.icon}
                 </div>
 
                 <div style="
-                    position:absolute;
-                    right:3px;
-                    bottom:2px;
                     font-size:10px;
-                    font-weight:bold;
-                    color:${rarity.color};
+                    white-space:nowrap;
+                    overflow:hidden;
                 ">
-                    N${item.level}
+                    ${item.name}
                 </div>
-            `;
 
-            slot.addEventListener(
-                "click",
-                () => openItemDetails(item.uid)
-            );
-
-        } else {
-
-            slot.innerHTML = `
                 <div style="
-                    opacity:.15;
-                    font-size:16px;
+                    font-size:10px;
+                    color:#d5b66d;
                 ">
-                    +
+                    ${rarity.name}
                 </div>
             `;
+
+            cell.onclick =
+                () =>
+                    openItemDetails(
+                        item.uid
+                    );
         }
 
-        grid.appendChild(slot);
+        grid.appendChild(cell);
     }
 
     panel.appendChild(grid);
 
-    const expandButton =
+    const expand =
         document.createElement("button");
 
-    expandButton.textContent =
-        `➕ AMPLIAR +5 ESPACIOS — ${INVENTORY_EXPANSION_COST} 🪙`;
+    expand.textContent =
+        "➕ AMPLIAR INVENTARIO (+5) — 500 🪙";
 
-    expandButton.style.cssText = `
+    expand.style.cssText = `
         width:100%;
         margin-top:12px;
-        padding:11px;
+        padding:13px;
+        background:#76572c;
         border:0;
-        border-radius:9px;
-        background:#765622;
+        border-radius:10px;
         color:white;
         font-weight:bold;
-        cursor:pointer;
     `;
 
-    expandButton.addEventListener(
-        "click",
-        expandInventory
+    expand.onclick =
+        expandInventory;
+
+    panel.appendChild(
+        expand
     );
 
-    panel.appendChild(expandButton);
+    const close =
+        document.createElement("button");
 
-    inventoryDirty = false;
+    close.textContent =
+        "CERRAR";
+
+    close.style.cssText = `
+        width:100%;
+        margin-top:7px;
+        padding:11px;
+        background:#292f39;
+        border:0;
+        border-radius:10px;
+        color:white;
+    `;
+
+    close.onclick =
+        closeInventory;
+
+    panel.appendChild(close);
 }
 
-/* ============================================================
-   ITEMS INICIALES
-   ============================================================ */
+function openInventory() {
 
-function initializeStarterInventory() {
+    let panel =
+        document.getElementById(
+            "inventoryPanel"
+        );
 
-    if (itemInventory.length > 0) {
+    if (!panel) {
+
+        renderInventoryPanel();
+
+        panel =
+            document.getElementById(
+                "inventoryPanel"
+            );
+    }
+
+    panel.style.display =
+        "block";
+
+    renderInventoryPanel();
+}
+
+function closeInventory() {
+
+    const panel =
+        document.getElementById(
+            "inventoryPanel"
+        );
+
+    if (panel) {
+
+        panel.style.display =
+            "none";
+    }
+
+    closeItemDetails();
+}
+
+/* =========================================================
+   HABILIDADES
+   ========================================================= */
+
+const skills = {
+
+    powerStrike: {
+        name: "Golpe Poderoso",
+        icon: "💥",
+        level: 2,
+        mana: 10,
+        multiplier: 2
+    },
+
+    rapidShot: {
+        name: "Disparo Rápido",
+        icon: "🏹",
+        level: 2,
+        mana: 12,
+        multiplier: 1.8
+    },
+
+    fireball: {
+        name: "Bola de Fuego",
+        icon: "🔥",
+        level: 2,
+        mana: 20,
+        multiplier: 2.5
+    },
+
+    shadowStrike: {
+        name: "Golpe Sombrío",
+        icon: "🌑",
+        level: 2,
+        mana: 15,
+        multiplier: 2.8
+    },
+
+    survival: {
+        name: "Supervivencia",
+        icon: "🌿",
+        level: 2,
+        mana: 10,
+        multiplier: 1.5
+    },
+
+    heal: {
+        name: "Curación",
+        icon: "💚",
+        level: 3,
+        mana: 25,
+        heal: 80
+    },
+
+    whirlwind: {
+        name: "Torbellino",
+        icon: "🌪️",
+        level: 5,
+        mana: 30,
+        multiplier: 2.2,
+        area: true
+    },
+
+    rage: {
+        name: "Furia",
+        icon: "😡",
+        level: 8,
+        mana: 35
+    },
+
+    execution: {
+        name: "Ejecución",
+        icon: "☠️",
+        level: 10,
+        mana: 45,
+        multiplier: 3.5
+    },
+
+    swordRain: {
+        name: "Lluvia de Espadas",
+        icon: "⚔️",
+        level: 15,
+        mana: 60,
+        multiplier: 3,
+        area: true
+    },
+
+    ashWrath: {
+        name: "Ira de Ceniza",
+        icon: "🔥",
+        level: 20,
+        mana: 80,
+        multiplier: 5,
+        area: true
+    }
+};
+
+function isSkillUnlocked(skillId) {
+
+    const skill =
+        skills[skillId];
+
+    return (
+        skill &&
+        player.level >= skill.level
+    );
+}
+
+function useSkill(skillId) {
+
+    const skill =
+        skills[skillId];
+
+    if (!skill) return;
+
+    if (
+        player.level <
+        skill.level
+    ) {
+
+        showMessage(
+            "🔒 Se desbloquea en nivel " +
+            skill.level
+        );
+
         return;
     }
 
-    /*
-       Dejamos algunos objetos iniciales.
-    */
+    if (
+        player.mana <
+        skill.mana
+    ) {
 
-    addItem("espadaAprendiz");
-    addItem("cascoCuero");
-    addItem("botasCuero");
+        showMessage(
+            "💧 No tienes suficiente maná."
+        );
 
-    markInventoryDirty();
+        return;
+    }
+
+    player.mana -=
+        skill.mana;
+
+    player.skillAnimation =
+        0.35;
+
+    if (skill.heal) {
+
+        player.hp =
+            Math.min(
+                player.maxHp,
+                player.hp +
+                skill.heal
+            );
+
+        showMessage(
+            "💚 Curación restauró " +
+            skill.heal +
+            " HP."
+        );
+
+        saveGame();
+        return;
+    }
+
+    if (skill.rage) {
+
+        player.rageTimer =
+            10;
+
+        showMessage(
+            "😡 ¡Furia activada!"
+        );
+
+        saveGame();
+        return;
+    }
+
+    let damage =
+        Math.round(
+            player.damage *
+            (skill.multiplier || 1)
+        );
+
+    if (skill.area) {
+
+        enemies.forEach(enemy => {
+
+            if (
+                enemy.dead ||
+                distance(
+                    player,
+                    enemy
+                ) > 190
+            ) return;
+
+            damageEnemy(
+                enemy,
+                damage
+            );
+        });
+
+    } else {
+
+        const target =
+            getNearestEnemy(
+                player.attackRange +
+                80
+            );
+
+        if (!target) {
+
+            showMessage(
+                "No hay enemigo cerca."
+            );
+
+            return;
+        }
+
+        damageEnemy(
+            target,
+            damage
+        );
+    }
+
+    showMessage(
+        skill.icon +
+        " " +
+        skill.name +
+        "!"
+    );
+
+    saveGame();
 }
 
-/* ============================================================
+/* =========================================================
    ENEMIGOS
-   ============================================================ */
+   ========================================================= */
 
 const enemyTypes = {
 
     wolf: {
         name: "Lobo",
+        icon: "🐺",
         hp: 70,
         damage: 12,
         speed: 110,
@@ -1289,6 +1608,7 @@ const enemyTypes = {
 
     boar: {
         name: "Jabalí",
+        icon: "🐗",
         hp: 100,
         damage: 15,
         speed: 80,
@@ -1299,6 +1619,7 @@ const enemyTypes = {
 
     goblin: {
         name: "Goblin",
+        icon: "👺",
         hp: 130,
         damage: 20,
         speed: 65,
@@ -1309,6 +1630,7 @@ const enemyTypes = {
 
     orc: {
         name: "Orco",
+        icon: "👹",
         hp: 220,
         damage: 28,
         speed: 55,
@@ -1320,1002 +1642,384 @@ const enemyTypes = {
 
 let enemies = [];
 
-/* ============================================================
-   CREAR ENEMIGO
-   ============================================================ */
-
-function createEnemy(type) {
-
-    const data = enemyTypes[type];
-
-    if (!data) return null;
-
-    let x;
-    let y;
-
-    let tries = 0;
-
-    do {
-
-        x = random(150, WORLD_WIDTH - 150);
-        y = random(150, WORLD_HEIGHT - 150);
-
-        tries++;
-
-    } while (
-        Math.hypot(
-            x - player.x,
-            y - player.y
-        ) < 500 &&
-        tries < 30
-    );
-
-    return {
-
-        id: createUID(),
-
-        type,
-
-        x,
-        y,
-
-        radius: data.radius,
-
-        hp: data.hp,
-        maxHp: data.hp,
-
-        damage: data.damage,
-        speed: data.speed,
-
-        xp: data.xp,
-        gold: data.gold,
-
-        attackCooldown: random(0, 1),
-
-        hitFlash: 0,
-
-        dead: false
-    };
-}
-
-/* ============================================================
-   MANTENER ENEMIGOS
-   ============================================================ */
-
-function maintainEnemies() {
-
-    const targetCount = 30;
-
-    if (enemies.length >= targetCount) {
-        return;
-    }
-
-    const types = [
-        "wolf",
-        "wolf",
-        "wolf",
-        "boar",
-        "boar",
-        "goblin",
-        "goblin",
-        "orc"
-    ];
-
-    while (enemies.length < targetCount) {
-
-        const type = randomChoice(types);
-
-        const enemy =
-            createEnemy(type);
-
-        if (enemy) {
-            enemies.push(enemy);
-        }
-    }
-}
-
-/* ============================================================
-   LOOT
-   ============================================================ */
-
-const enemyLootTables = {
-
-    wolf: [
-
-        {
-            type: "gold",
-            min: 3,
-            max: 8,
-            chance: 1
-        },
-
-        {
-            type: "counter",
-            key: "wolfFang",
-            min: 1,
-            max: 2,
-            chance: 0.65
-        },
-
-        {
-            type: "counter",
-            key: "leather",
-            min: 1,
-            max: 2,
-            chance: 0.35
-        },
-
-        {
-            type: "item",
-            itemId: "cascoCuero",
-            chance: 0.08
-        },
-
-        {
-            type: "item",
-            itemId: "botasCuero",
-            chance: 0.07
-        },
-
-        {
-            type: "item",
-            itemId: "espadaAprendiz",
-            chance: 0.04
-        },
-
-        {
-            type: "potion",
-            chance: 0.04
-        }
-    ],
-
-    boar: [
-
-        {
-            type: "gold",
-            min: 4,
-            max: 12,
-            chance: 1
-        },
-
-        {
-            type: "counter",
-            key: "meat",
-            min: 1,
-            max: 3,
-            chance: 0.9
-        },
-
-        {
-            type: "counter",
-            key: "leather",
-            min: 1,
-            max: 2,
-            chance: 0.45
-        },
-
-        {
-            type: "item",
-            itemId: "armaduraCuero",
-            chance: 0.08
-        },
-
-        {
-            type: "item",
-            itemId: "escudoMadera",
-            chance: 0.07
-        },
-
-        {
-            type: "item",
-            itemId: "botasCuero",
-            chance: 0.05
-        },
-
-        {
-            type: "potion",
-            chance: 0.05
-        }
-    ],
-
-    goblin: [
-
-        {
-            type: "gold",
-            min: 8,
-            max: 20,
-            chance: 1
-        },
-
-        {
-            type: "counter",
-            key: "goblinEar",
-            min: 1,
-            max: 2,
-            chance: 0.7
-        },
-
-        {
-            type: "counter",
-            key: "iron",
-            min: 1,
-            max: 2,
-            chance: 0.4
-        },
-
-        {
-            type: "item",
-            itemId: "espadaHierro",
-            chance: 0.07
-        },
-
-        {
-            type: "item",
-            itemId: "cascoGoblin",
-            chance: 0.07
-        },
-
-        {
-            type: "item",
-            itemId: "escudoHierro",
-            chance: 0.04
-        },
-
-        {
-            type: "item",
-            itemId: "botasGoblin",
-            chance: 0.05
-        }
-    ],
-
-    orc: [
-
-        {
-            type: "gold",
-            min: 15,
-            max: 40,
-            chance: 1
-        },
-
-        {
-            type: "counter",
-            key: "iron",
-            min: 1,
-            max: 4,
-            chance: 0.7
-        },
-
-        {
-            type: "counter",
-            key: "leather",
-            min: 1,
-            max: 3,
-            chance: 0.55
-        },
-
-        {
-            type: "item",
-            itemId: "espadaAcero",
-            chance: 0.06
-        },
-
-        {
-            type: "item",
-            itemId: "armaduraHierro",
-            chance: 0.06
-        },
-
-        {
-            type: "item",
-            itemId: "escudoHierro",
-            chance: 0.07
-        },
-
-        {
-            type: "item",
-            itemId: "cascoGoblin",
-            chance: 0.08
-        },
-
-        {
-            type: "potion",
-            chance: 0.12
-        }
-    ]
-};
-
-/* ============================================================
-   PROBABILIDAD DE RAREZA
-   ============================================================ */
-
-function rollLootRarity(itemId) {
-
-    const roll = Math.random();
-
-    /*
-       Equipo de nivel bajo:
-       mayormente común.
-    */
-
-    if (roll < 0.015) {
-        return "legendary";
-    }
-
-    if (roll < 0.045) {
-        return "epic";
-    }
-
-    if (roll < 0.12) {
-        return "rare";
-    }
-
-    if (roll < 0.28) {
-        return "uncommon";
-    }
-
-    return itemDefinitions[itemId]?.rarity || "common";
-}
-
-/* ============================================================
-   PROCESAR LOOT
-   ============================================================ */
-
-function processEnemyLoot(type) {
-
-    const table =
-        enemyLootTables[type];
-
-    if (!table) return;
-
-    let lootMessage = [];
-
-    for (const loot of table) {
-
-        if (Math.random() > loot.chance) {
-            continue;
-        }
-
-        if (loot.type === "gold") {
-
-            const amount =
-                randomInt(
-                    loot.min,
-                    loot.max
-                );
-
-            inventory.gold += amount;
-
-            lootMessage.push(
-                `+${amount} 🪙`
-            );
-        }
-
-        else if (loot.type === "counter") {
-
-            const amount =
-                randomInt(
-                    loot.min,
-                    loot.max
-                );
-
-            inventory[loot.key] =
-                safeNumber(
-                    inventory[loot.key]
-                ) + amount;
-
-            lootMessage.push(
-                `+${amount} ${counterName(loot.key)}`
-            );
-        }
-
-        else if (loot.type === "potion") {
-
-            inventory.potions++;
-
-            lootMessage.push(
-                "+1 🧪 Poción"
-            );
-        }
-
-        else if (loot.type === "item") {
-
-            if (inventoryHasSpace()) {
-
-                const rarity =
-                    rollLootRarity(
-                        loot.itemId
-                    );
-
-                const item =
-                    createItem(
-                        loot.itemId,
-                        rarity
-                    );
-
-                if (item) {
-
-                    itemInventory.push(item);
-
-                    lootMessage.push(
-                        `${item.icon} ${item.name}`
-                    );
-                }
-
-            } else {
-
-                showMessage(
-                    "🎒 Inventario lleno: objeto perdido"
-                );
-            }
-        }
-    }
-
-    if (lootMessage.length > 0) {
-
-        showMessage(
-            "🎁 Botín: " +
-            lootMessage.join(", ")
-        );
-    }
-
-    markInventoryDirty();
-}
-
-/* ============================================================
-   NOMBRES DE RECURSOS
-   ============================================================ */
-
-function counterName(key) {
-
-    const names = {
-
-        wood: "Madera",
-
-        stone: "Piedra",
-
-        copper: "Cobre",
-
-        iron: "Hierro",
-
-        fish: "Pez",
-
-        meat: "Carne",
-
-        wolfFang: "Colmillo de lobo",
-
-        goblinEar: "Oreja de goblin",
-
-        leather: "Cuero",
-
-        bait: "Cebo"
-    };
-
-    return names[key] || key;
-}
-
-/* ============================================================
+/* =========================================================
    RECURSOS
-   ============================================================ */
+   ========================================================= */
 
 let resources = [];
 
-function createResource(type) {
+function randomWorldPosition() {
 
-    let x;
-    let y;
-
-    let tries = 0;
+    let x, y;
 
     do {
 
-        x = random(100, WORLD_WIDTH - 100);
-        y = random(100, WORLD_HEIGHT - 100);
+        x =
+            150 +
+            Math.random() *
+            (WORLD_WIDTH - 300);
 
-        tries++;
+        y =
+            150 +
+            Math.random() *
+            (WORLD_HEIGHT - 300);
 
     } while (
-        Math.hypot(
-            x - respawnPoint.x,
-            y - respawnPoint.y
-        ) < CITY_RADIUS + 100 &&
-        tries < 30
+        distance(
+            {
+                x,
+                y
+            },
+            {
+                x: CITY_X,
+                y: CITY_Y
+            }
+        ) <
+        CITY_RADIUS + 100
     );
 
     return {
-
-        id: createUID(),
-
-        type,
-
         x,
-        y,
-
-        radius:
-            type === "tree"
-                ? 24
-                : 20,
-
-        amount:
-            randomInt(1, 3),
-
-        respawnTimer: 0
+        y
     };
 }
 
-function initializeResources() {
+function createResources() {
 
-    if (resources.length > 0) {
-        return;
-    }
+    resources = [];
 
     const types = [
         "tree",
-        "tree",
-        "tree",
-        "rock",
         "rock",
         "copper",
         "iron"
     ];
 
-    for (let i = 0; i < 300; i++) {
+    for (
+        let i = 0;
+        i < 300;
+        i++
+    ) {
 
-        const type =
-            randomChoice(types);
+        const pos =
+            randomWorldPosition();
 
-        resources.push(
-            createResource(type)
-        );
+        resources.push({
+
+            x: pos.x,
+            y: pos.y,
+
+            type:
+                types[
+                    Math.floor(
+                        Math.random() *
+                        types.length
+                    )
+                ],
+
+            hp: 1,
+
+            collected: false,
+
+            respawn: 0
+        });
     }
 }
 
-/* ============================================================
-   RECOLECCIÓN
-   ============================================================ */
+/* =========================================================
+   ENEMIGOS CREAR
+   ========================================================= */
 
-function gatherResource(resource) {
+function spawnEnemy(type) {
 
-    if (!resource) return;
+    const data =
+        enemyTypes[type];
 
-    const tool =
-        resourceTools[resource.type];
+    if (!data) return;
 
-    if (!tool) return;
+    const pos =
+        randomWorldPosition();
 
-    if (!tools[tool]?.equipped) {
+    enemies.push({
 
-        showMessage(
-            `Necesitas ${tools[tool].name}`
-        );
+        type,
 
+        x: pos.x,
+        y: pos.y,
+
+        hp: data.hp,
+        maxHp: data.hp,
+
+        radius: data.radius,
+
+        damage: data.damage,
+
+        speed: data.speed,
+
+        xp: data.xp,
+
+        gold: data.gold,
+
+        attackCooldown: 0,
+
+        dead: false,
+
+        respawn: 0,
+
+        hitFlash: 0
+    });
+}
+
+function maintainEnemies() {
+
+    const alive =
+        enemies.filter(
+            e => !e.dead
+        ).length;
+
+    const desired = 30;
+
+    if (alive >= desired) {
         return;
     }
 
-    const amount =
-        resource.amount || 1;
+    const types = [
+        "wolf",
+        "boar",
+        "goblin",
+        "orc"
+    ];
 
-    let name = "";
-
-    if (resource.type === "tree") {
-
-        inventory.wood += amount;
-
-        name = "Madera";
-    }
-
-    else if (resource.type === "rock") {
-
-        inventory.stone += amount;
-
-        name = "Piedra";
-    }
-
-    else if (resource.type === "copper") {
-
-        inventory.copper += amount;
-
-        name = "Cobre";
-    }
-
-    else if (resource.type === "iron") {
-
-        inventory.iron += amount;
-
-        name = "Hierro";
-    }
-
-    resource.respawnTimer = 25;
-
-    showMessage(
-        `⛏️ +${amount} ${name}`
+    spawnEnemy(
+        types[
+            Math.floor(
+                Math.random() *
+                types.length
+            )
+        ]
     );
-
-    updateQuestProgress(
-        "gather",
-        amount
-    );
-
-    markInventoryDirty();
-
-    saveGame();
 }
 
-/* ============================================================
-   NOMBRES DE TERRENO
-   ============================================================ */
+for (
+    let i = 0;
+    i < 30;
+    i++
+) {
 
-function terrainAt(tx, ty) {
+    const types = [
+        "wolf",
+        "boar",
+        "goblin",
+        "orc"
+    ];
 
-    const x = tx * TILE;
-    const y = ty * TILE;
-
-    const dx =
-        x - respawnPoint.x;
-
-    const dy =
-        y - respawnPoint.y;
-
-    const dist =
-        Math.sqrt(
-            dx * dx +
-            dy * dy
-        );
-
-    /*
-       Agua en zonas exteriores.
-    */
-
-    const noise =
-        Math.sin(tx * 0.73) *
-        Math.cos(ty * 0.51);
-
-    if (
-        dist > 1500 &&
-        noise > 0.45
-    ) {
-        return TERRAIN.WATER;
-    }
-
-    if (noise < -0.65) {
-        return TERRAIN.ROCK;
-    }
-
-    if (noise > 0.62) {
-        return TERRAIN.FOREST;
-    }
-
-    if (
-        noise > 0.28 &&
-        noise <= 0.62
-    ) {
-        return TERRAIN.SAND;
-    }
-
-    return TERRAIN.GRASS;
+    spawnEnemy(
+        types[
+            Math.floor(
+                Math.random() *
+                types.length
+            )
+        ]
+    );
 }
 
-/* ============================================================
-   CÁMARA
-   ============================================================ */
+/* =========================================================
+   LOOT
+   ========================================================= */
 
-const camera = {
-    x: respawnPoint.x,
-    y: respawnPoint.y
+const lootTables = {
+
+    wolf: [
+        {
+            item: "wolfFang",
+            chance: 0.75
+        },
+        {
+            item: "leather",
+            chance: 0.55
+        },
+        {
+            item: "leatherHelmet",
+            chance: 0.08
+        },
+        {
+            item: "leatherBoots",
+            chance: 0.07
+        },
+        {
+            item: "apprenticeSword",
+            chance: 0.04
+        },
+        {
+            item: "potion",
+            chance: 0.04
+        }
+    ],
+
+    boar: [
+        {
+            item: "meat",
+            chance: 0.8
+        },
+        {
+            item: "leather",
+            chance: 0.6
+        },
+        {
+            item: "leatherArmor",
+            chance: 0.08
+        },
+        {
+            item: "woodenShield",
+            chance: 0.07
+        },
+        {
+            item: "leatherBoots",
+            chance: 0.05
+        },
+        {
+            item: "potion",
+            chance: 0.05
+        }
+    ],
+
+    goblin: [
+        {
+            item: "goblinEar",
+            chance: 0.75
+        },
+        {
+            item: "iron",
+            chance: 0.45
+        },
+        {
+            item: "ironSword",
+            chance: 0.07
+        },
+        {
+            item: "goblinHelmet",
+            chance: 0.07
+        },
+        {
+            item: "ironShield",
+            chance: 0.04
+        },
+        {
+            item: "goblinBoots",
+            chance: 0.05
+        }
+    ],
+
+    orc: [
+        {
+            item: "iron",
+            chance: 0.7
+        },
+        {
+            item: "leather",
+            chance: 0.6
+        },
+        {
+            item: "steelSword",
+            chance: 0.06
+        },
+        {
+            item: "ironArmor",
+            chance: 0.06
+        },
+        {
+            item: "ironShield",
+            chance: 0.07
+        },
+        {
+            item: "goblinHelmet",
+            chance: 0.08
+        },
+        {
+            item: "potion",
+            chance: 0.12
+        }
+    ]
 };
 
-function updateCamera() {
+function processEnemyLoot(type) {
 
-    if (!canvas) return;
+    const table =
+        lootTables[type] || [];
 
-    const halfW =
-        canvas.width / 2;
-
-    const halfH =
-        canvas.height / 2;
-
-    camera.x =
-        clamp(
-            player.x,
-            halfW,
-            WORLD_WIDTH - halfW
-        );
-
-    camera.y =
-        clamp(
-            player.y,
-            halfH,
-            WORLD_HEIGHT - halfH
-        );
-}
-
-/* ============================================================
-   JOYSTICK
-   ============================================================ */
-
-let joyX = 0;
-let joyY = 0;
-
-let joystickPointerId = null;
-
-function setupJoystick() {
-
-    const joystick =
-        document.getElementById("joystick");
-
-    if (!joystick) return;
-
-    function updateJoystick(clientX, clientY) {
-
-        const rect =
-            joystick.getBoundingClientRect();
-
-        const centerX =
-            rect.left + rect.width / 2;
-
-        const centerY =
-            rect.top + rect.height / 2;
-
-        let dx =
-            clientX - centerX;
-
-        let dy =
-            clientY - centerY;
-
-        const radius =
-            Math.min(
-                rect.width,
-                rect.height
-            ) / 2;
-
-        const len =
-            Math.sqrt(
-                dx * dx +
-                dy * dy
-            );
-
-        if (len > radius) {
-
-            dx =
-                dx / len * radius;
-
-            dy =
-                dy / len * radius;
-        }
-
-        joyX =
-            clamp(
-                dx / radius,
-                -1,
-                1
-            );
-
-        joyY =
-            clamp(
-                dy / radius,
-                -1,
-                1
-            );
-
-        const knob =
-            joystick.querySelector(
-                ".joystick-knob"
-            ) ||
-            joystick.querySelector(
-                ".stick"
-            );
-
-        if (knob) {
-
-            knob.style.transform =
-                `translate(${dx}px, ${dy}px)`;
-        }
-    }
-
-    joystick.addEventListener(
-        "pointerdown",
-        event => {
-
-            joystickPointerId =
-                event.pointerId;
-
-            try {
-                joystick.setPointerCapture(
-                    event.pointerId
-                );
-            } catch (_) {}
-
-            updateJoystick(
-                event.clientX,
-                event.clientY
-            );
-        }
-    );
-
-    joystick.addEventListener(
-        "pointermove",
-        event => {
-
-            if (
-                joystickPointerId !==
-                event.pointerId
-            ) {
-                return;
-            }
-
-            updateJoystick(
-                event.clientX,
-                event.clientY
-            );
-        }
-    );
-
-    function releaseJoystick(event) {
+    table.forEach(drop => {
 
         if (
-            joystickPointerId !==
-            event.pointerId
+            Math.random() >
+            drop.chance
         ) {
             return;
         }
 
-        joystickPointerId = null;
+        switch (drop.item) {
 
-        joyX = 0;
-        joyY = 0;
+            case "wolfFang":
+                inventory.wolfFang++;
+                break;
 
-        const knob =
-            joystick.querySelector(
-                ".joystick-knob"
-            ) ||
-            joystick.querySelector(
-                ".stick"
-            );
+            case "goblinEar":
+                inventory.goblinEar++;
+                break;
 
-        if (knob) {
-            knob.style.transform =
-                "translate(0px, 0px)";
+            case "leather":
+                inventory.leather++;
+                break;
+
+            case "meat":
+                inventory.meat++;
+                break;
+
+            case "iron":
+                inventory.iron++;
+                break;
+
+            case "potion":
+                inventory.potions++;
+                break;
+
+            default:
+
+                if (
+                    itemDefinitions[
+                        drop.item
+                    ]
+                ) {
+
+                    addItem(
+                        drop.item
+                    );
+                }
+
+                break;
         }
-    }
+    });
+}
 
-    joystick.addEventListener(
-        "pointerup",
-        releaseJoystick
-    );
+/* =========================================================
+   COMBATE
+   ========================================================= */
 
-    joystick.addEventListener(
-        "pointercancel",
-        releaseJoystick
+function distance(a, b) {
+
+    return Math.hypot(
+        a.x - b.x,
+        a.y - b.y
     );
 }
 
-/* ============================================================
-   TECLADO
-   ============================================================ */
+function getNearestEnemy(range) {
 
-const keys = {};
+    let nearest = null;
+    let best = Infinity;
 
-window.addEventListener(
-    "keydown",
-    event => {
+    enemies.forEach(enemy => {
 
-        keys[event.key.toLowerCase()] = true;
-
-        if (
-            event.key.toLowerCase() === "e"
-        ) {
-            interact();
-        }
-
-        if (
-            event.key.toLowerCase() === "p"
-        ) {
-            usePotion();
-        }
-
-        if (
-            event.key === " "
-        ) {
-            event.preventDefault();
-            attack();
-        }
-    }
-);
-
-window.addEventListener(
-    "keyup",
-    event => {
-
-        keys[event.key.toLowerCase()] = false;
-    }
-);
-
-/* ============================================================
-   MOVIMIENTO
-   ============================================================ */
-
-function updateMovement(dt) {
-
-    if (player.dead) return;
-
-    let x = joyX;
-    let y = joyY;
-
-    if (keys["w"] || keys["arrowup"]) {
-        y -= 1;
-    }
-
-    if (keys["s"] || keys["arrowdown"]) {
-        y += 1;
-    }
-
-    if (keys["a"] || keys["arrowleft"]) {
-        x -= 1;
-    }
-
-    if (keys["d"] || keys["arrowright"]) {
-        x += 1;
-    }
-
-    const dir =
-        normalize(x, y);
-
-    if (
-        Math.abs(dir.x) > 0 ||
-        Math.abs(dir.y) > 0
-    ) {
-
-        player.directionX = dir.x;
-        player.directionY = dir.y;
-
-        player.x +=
-            dir.x *
-            player.speed *
-            dt;
-
-        player.y +=
-            dir.y *
-            player.speed *
-            dt;
-    }
-
-    player.x =
-        clamp(
-            player.x,
-            player.radius,
-            WORLD_WIDTH - player.radius
-        );
-
-    player.y =
-        clamp(
-            player.y,
-            player.radius,
-            WORLD_HEIGHT - player.radius
-        );
-}
-
-/* ============================================================
-   ATAQUE
-   ============================================================ */
-
-function attack() {
-
-    if (player.dead) return;
-
-    if (player.attackCooldown > 0) {
-        return;
-    }
-
-    player.attackCooldown =
-        player.attackDelay;
-
-    player.attackAnimation = 0.18;
-
-    let closest = null;
-    let closestDistance = Infinity;
-
-    for (const enemy of enemies) {
-
-        if (enemy.dead) continue;
+        if (enemy.dead) return;
 
         const d =
             distance(
@@ -2324,50 +2028,107 @@ function attack() {
             );
 
         if (
-            d <= player.attackRange &&
-            d < closestDistance
+            d <= range &&
+            d < best
         ) {
 
-            closest = enemy;
-            closestDistance = d;
+            best = d;
+            nearest = enemy;
         }
+    });
+
+    return nearest;
+}
+
+function attack() {
+
+    if (player.dead) return;
+
+    if (
+        player.attackCooldown >
+        0
+    ) {
+        return;
     }
 
-    if (!closest) {
+    player.attackCooldown =
+        player.attackDelay;
 
-        showMessage("⚔️");
+    player.attackAnimation =
+        0.18;
+
+    const target =
+        getNearestEnemy(
+            player.attackRange
+        );
+
+    if (!target) {
+
+        showMessage(
+            "⚔️ No hay enemigo en alcance."
+        );
 
         return;
     }
 
-    const damage =
-        Math.max(
-            1,
+    let damage =
+        player.damage;
+
+    if (
+        Math.random() <
+        player.criticalChance
+    ) {
+
+        damage =
             Math.round(
-                player.damage *
-                random(0.85, 1.15)
-            )
+                damage *
+                player.criticalDamage
+            );
+
+        showMessage(
+            "💥 ¡GOLPE CRÍTICO!"
         );
-
-    closest.hp -= damage;
-    closest.hitFlash = 0.12;
-
-    addFloatingText(
-        closest.x,
-        closest.y - 35,
-        `-${damage}`,
-        "#ff5d5d"
-    );
-
-    if (closest.hp <= 0) {
-
-        killEnemy(closest);
     }
+
+    if (
+        player.rageTimer >
+        0
+    ) {
+
+        damage =
+            Math.round(
+                damage * 1.5
+            );
+    }
+
+    damageEnemy(
+        target,
+        damage
+    );
 }
 
-/* ============================================================
-   MATAR ENEMIGO
-   ============================================================ */
+function damageEnemy(
+    enemy,
+    damage
+) {
+
+    if (
+        !enemy ||
+        enemy.dead
+    ) {
+        return;
+    }
+
+    enemy.hp -= damage;
+    enemy.hitFlash = 0.12;
+
+    if (enemy.hp <= 0) {
+
+        enemy.hp = 0;
+
+        killEnemy(enemy);
+    }
+}
 
 function killEnemy(enemy) {
 
@@ -2375,59 +2136,44 @@ function killEnemy(enemy) {
 
     enemy.dead = true;
 
-    player.kills++;
+    const data =
+        enemyTypes[
+            enemy.type
+        ];
 
     inventory.gold +=
-        enemy.gold;
+        data.gold;
 
-    gainXP(enemy.xp);
+    gainXP(
+        data.xp
+    );
 
     processEnemyLoot(
         enemy.type
     );
 
-    updateQuestProgress(
+    updateQuest(
         "kill",
-        1
+        enemy.type
     );
 
-    updateQuestProgress(
-        "kill_" + enemy.type,
-        1
+    showMessage(
+        "☠️ Derrotaste un " +
+        data.name +
+        " +" +
+        data.gold +
+        " 🪙"
     );
 
-    addFloatingText(
-        enemy.x,
-        enemy.y - 40,
-        `+${enemy.xp} XP`,
-        "#ffe16b"
-    );
-
-    setTimeout(
-        () => {
-
-            const index =
-                enemies.indexOf(enemy);
-
-            if (index !== -1) {
-                enemies.splice(
-                    index,
-                    1
-                );
-            }
-
-        },
-        100
-    );
-
-    markInventoryDirty();
+    enemy.respawn =
+        5;
 
     saveGame();
 }
 
-/* ============================================================
-   EXPERIENCIA
-   ============================================================ */
+/* =========================================================
+   XP
+   ========================================================= */
 
 function gainXP(amount) {
 
@@ -2450,499 +2196,408 @@ function levelUp() {
     player.level++;
 
     player.xpNeeded =
-        Math.floor(
+        Math.round(
             100 *
             Math.pow(
-                1.25,
+                1.22,
                 player.level - 1
             )
         );
 
-    player.maxHp += 15;
-    player.maxMana += 5;
+    const hpBonus = 8;
+
+    player.maxHp +=
+        hpBonus;
 
     player.hp =
         player.maxHp;
 
+    player.maxMana +=
+        5;
+
     player.mana =
         player.maxMana;
 
+    recalculatePlayerStats();
+
     showMessage(
-        `🎉 ¡NIVEL ${player.level}!`
+        "🎉 ¡SUBISTE A NIVEL " +
+        player.level +
+        "!"
     );
-
-    addFloatingText(
-        player.x,
-        player.y - 55,
-        `NIVEL ${player.level}`,
-        "#ffe76a"
-    );
-
-    unlockSkills();
 
     saveGame();
 }
 
-/* ============================================================
-   HABILIDADES
-   ============================================================ */
+/* =========================================================
+   MOVIMIENTO
+   ========================================================= */
 
-const skills = [
+let keys = {};
 
-    {
-        id: "golpePoderoso",
-        name: "Golpe Poderoso",
-        level: 2,
-        mana: 10,
-        cooldown: 4
-    },
+let joyX = 0;
+let joyY = 0;
 
-    {
-        id: "curacion",
-        name: "Curación",
-        level: 3,
-        mana: 15,
-        cooldown: 8
-    },
+window.addEventListener(
+    "keydown",
+    e => {
 
-    {
-        id: "torbellino",
-        name: "Torbellino",
-        level: 5,
-        mana: 20,
-        cooldown: 8
-    },
-
-    {
-        id: "furia",
-        name: "Furia",
-        level: 8,
-        mana: 20,
-        cooldown: 15
-    },
-
-    {
-        id: "ejecucion",
-        name: "Ejecución",
-        level: 10,
-        mana: 30,
-        cooldown: 15
-    },
-
-    {
-        id: "lluviaEspadas",
-        name: "Lluvia de Espadas",
-        level: 15,
-        mana: 40,
-        cooldown: 20
-    },
-
-    {
-        id: "iraCeniza",
-        name: "Ira de Ceniza",
-        level: 20,
-        mana: 50,
-        cooldown: 30
-    }
-];
-
-const skillCooldowns = {};
-
-function unlockSkills() {
-
-    for (const skill of skills) {
+        keys[e.key.toLowerCase()] =
+            true;
 
         if (
-            player.level >= skill.level &&
-            !skillCooldowns[skill.id]
+            e.key.toLowerCase() ===
+            "p"
+        ) {
+            usePotion();
+        }
+
+        if (
+            e.key.toLowerCase() ===
+            "i"
         ) {
 
-            skillCooldowns[skill.id] = 0;
+            const panel =
+                document.getElementById(
+                    "inventoryPanel"
+                );
 
             if (
-                player.level ===
-                skill.level
+                panel &&
+                panel.style.display !==
+                    "none"
             ) {
 
-                showMessage(
-                    `✨ Nueva habilidad: ${skill.name}`
-                );
+                closeInventory();
+
+            } else {
+
+                openInventory();
             }
         }
     }
-}
+);
 
-/* ============================================================
-   USAR HABILIDAD
-   ============================================================ */
+window.addEventListener(
+    "keyup",
+    e => {
 
-function useSkill(skillId) {
+        keys[e.key.toLowerCase()] =
+            false;
+    }
+);
 
-    if (player.dead) return;
+function setupJoystick() {
 
-    const skill =
-        skills.find(
-            s => s.id === skillId
+    const joystick =
+        document.getElementById(
+            "joystick"
         );
 
-    if (!skill) return;
+    const knob =
+        document.getElementById(
+            "joystickKnob"
+        );
 
-    if (
-        player.level <
-        skill.level
+    if (!joystick) return;
+
+    function updateJoystick(
+        clientX,
+        clientY
     ) {
 
-        showMessage(
-            `🔒 Nivel ${skill.level} requerido`
-        );
+        const rect =
+            joystick.getBoundingClientRect();
 
-        return;
-    }
+        const centerX =
+            rect.left +
+            rect.width / 2;
 
-    const cooldown =
-        skillCooldowns[skill.id] || 0;
+        const centerY =
+            rect.top +
+            rect.height / 2;
 
-    if (cooldown > 0) {
+        let dx =
+            clientX -
+            centerX;
 
-        showMessage(
-            `⏳ ${cooldown.toFixed(1)}s`
-        );
+        let dy =
+            clientY -
+            centerY;
 
-        return;
-    }
+        const max =
+            rect.width / 2;
 
-    if (
-        player.mana <
-        skill.mana
-    ) {
-
-        showMessage(
-            "💧 No tienes suficiente maná"
-        );
-
-        return;
-    }
-
-    player.mana -=
-        skill.mana;
-
-    skillCooldowns[skill.id] =
-        skill.cooldown;
-
-    player.skillAnimation =
-        0.4;
-
-    if (skill.id === "golpePoderoso") {
-
-        damageClosestEnemy(
-            player.damage * 2.2
-        );
-    }
-
-    else if (skill.id === "curacion") {
-
-        player.hp =
-            Math.min(
-                player.maxHp,
-                player.hp + 45
-            );
-
-        addFloatingText(
-            player.x,
-            player.y - 50,
-            "+45 HP",
-            "#63ff82"
-        );
-    }
-
-    else if (skill.id === "torbellino") {
-
-        damageArea(
-            170,
-            player.damage * 1.5
-        );
-    }
-
-    else if (skill.id === "furia") {
-
-        player.rageTimer = 12;
-
-        showMessage(
-            "🔥 ¡Furia activada!"
-        );
-    }
-
-    else if (skill.id === "ejecucion") {
-
-        damageClosestEnemy(
-            player.damage * 3.2
-        );
-    }
-
-    else if (
-        skill.id === "lluviaEspadas"
-    ) {
-
-        damageArea(
-            280,
-            player.damage * 2
-        );
-    }
-
-    else if (
-        skill.id === "iraCeniza"
-    ) {
-
-        damageArea(
-            420,
-            player.damage * 3
-        );
-    }
-
-    saveGame();
-}
-
-/* ============================================================
-   DAÑO ENEMIGO CERCANO
-   ============================================================ */
-
-function damageClosestEnemy(amount) {
-
-    let closest = null;
-    let closestDistance = Infinity;
-
-    for (const enemy of enemies) {
-
-        if (enemy.dead) continue;
-
-        const d =
-            distance(
-                player,
-                enemy
-            );
+        const length =
+            Math.hypot(dx, dy);
 
         if (
-            d <=
-            player.attackRange * 1.8 &&
-            d < closestDistance
+            length >
+            max
         ) {
 
-            closest =
-                enemy;
+            dx =
+                dx / length *
+                max;
 
-            closestDistance =
-                d;
+            dy =
+                dy / length *
+                max;
+        }
+
+        joyX =
+            dx / max;
+
+        joyY =
+            dy / max;
+
+        if (knob) {
+
+            knob.style.transform =
+                `translate(${dx}px,${dy}px)`;
         }
     }
 
-    if (!closest) {
+    function resetJoystick() {
 
-        showMessage(
-            "No hay enemigos cerca"
-        );
+        joyX = 0;
+        joyY = 0;
 
-        return;
+        if (knob) {
+
+            knob.style.transform =
+                "translate(0,0)";
+        }
     }
 
-    let finalDamage =
-        Math.round(amount);
+    joystick.addEventListener(
+        "pointerdown",
+        e => {
 
-    if (player.rageTimer > 0) {
-        finalDamage *= 2;
-    }
-
-    closest.hp -=
-        finalDamage;
-
-    closest.hitFlash =
-        0.25;
-
-    addFloatingText(
-        closest.x,
-        closest.y - 40,
-        `-${finalDamage}`,
-        "#ffb347"
-    );
-
-    if (closest.hp <= 0) {
-        killEnemy(closest);
-    }
-}
-
-/* ============================================================
-   DAÑO DE ÁREA
-   ============================================================ */
-
-function damageArea(radius, amount) {
-
-    let hits = 0;
-
-    for (const enemy of enemies) {
-
-        if (enemy.dead) continue;
-
-        if (
-            distance(
-                player,
-                enemy
-            ) <= radius
-        ) {
-
-            let finalDamage =
-                Math.round(amount);
-
-            if (player.rageTimer > 0) {
-                finalDamage *= 2;
-            }
-
-            enemy.hp -=
-                finalDamage;
-
-            enemy.hitFlash =
-                0.2;
-
-            addFloatingText(
-                enemy.x,
-                enemy.y - 40,
-                `-${finalDamage}`,
-                "#ff8d4d"
+            joystick.setPointerCapture(
+                e.pointerId
             );
 
-            hits++;
-
-            if (enemy.hp <= 0) {
-                killEnemy(enemy);
-            }
+            updateJoystick(
+                e.clientX,
+                e.clientY
+            );
         }
-    }
-
-    if (hits === 0) {
-        showMessage(
-            "No hay enemigos en el área"
-        );
-    }
-}
-
-/* ============================================================
-   POCIONES
-   ============================================================ */
-
-function usePotion() {
-
-    if (
-        inventory.potions <= 0
-    ) {
-
-        showMessage(
-            "🧪 No tienes pociones"
-        );
-
-        return;
-    }
-
-    if (
-        player.hp >=
-        player.maxHp
-    ) {
-
-        showMessage(
-            "❤️ Tu vida ya está llena"
-        );
-
-        return;
-    }
-
-    inventory.potions--;
-
-    const amount = 50;
-
-    player.hp =
-        Math.min(
-            player.maxHp,
-            player.hp + amount
-        );
-
-    addFloatingText(
-        player.x,
-        player.y - 50,
-        `+${amount} HP`,
-        "#66ff80"
     );
 
-    markInventoryDirty();
+    joystick.addEventListener(
+        "pointermove",
+        e => {
 
-    saveGame();
+            if (
+                e.pressure === 0
+            ) {
+                return;
+            }
+
+            updateJoystick(
+                e.clientX,
+                e.clientY
+            );
+        }
+    );
+
+    joystick.addEventListener(
+        "pointerup",
+        resetJoystick
+    );
+
+    joystick.addEventListener(
+        "pointercancel",
+        resetJoystick
+    );
 }
 
-/* ============================================================
-   ACTUALIZAR JUGADOR
-   ============================================================ */
+setupJoystick();
 
-function updatePlayer(dt) {
+/* =========================================================
+   ACTUALIZAR
+   ========================================================= */
+
+function update(dt) {
+
+    if (player.dead) {
+
+        player.respawnTimer -= dt;
+
+        if (
+            player.respawnTimer <= 0
+        ) {
+
+            respawnPlayer();
+        }
+
+        return;
+    }
 
     if (
-        player.attackCooldown > 0
+        player.attackCooldown >
+        0
     ) {
+
         player.attackCooldown -= dt;
     }
 
     if (
-        player.attackAnimation > 0
+        player.attackAnimation >
+        0
     ) {
+
         player.attackAnimation -= dt;
     }
 
     if (
-        player.skillAnimation > 0
+        player.skillAnimation >
+        0
     ) {
+
         player.skillAnimation -= dt;
     }
 
     if (
-        player.rageTimer > 0
+        player.rageTimer >
+        0
     ) {
+
         player.rageTimer -= dt;
     }
 
-    for (const skill of skills) {
+    let dx = 0;
+    let dy = 0;
 
-        if (
-            skillCooldowns[skill.id] > 0
-        ) {
+    if (
+        keys["w"] ||
+        keys["arrowup"]
+    ) dy--;
 
-            skillCooldowns[skill.id] =
-                Math.max(
-                    0,
-                    skillCooldowns[skill.id] - dt
-                );
-        }
+    if (
+        keys["s"] ||
+        keys["arrowdown"]
+    ) dy++;
+
+    if (
+        keys["a"] ||
+        keys["arrowleft"]
+    ) dx--;
+
+    if (
+        keys["d"] ||
+        keys["arrowright"]
+    ) dx++;
+
+    if (
+        Math.abs(joyX) >
+        0.05 ||
+        Math.abs(joyY) >
+        0.05
+    ) {
+
+        dx = joyX;
+        dy = joyY;
     }
 
-    /*
-       Regeneración suave de maná.
-    */
+    const length =
+        Math.hypot(dx, dy);
 
-    player.mana =
-        Math.min(
-            player.maxMana,
-            player.mana +
-            dt * 2
+    if (length > 0) {
+
+        dx /= length;
+        dy /= length;
+
+        player.x +=
+            dx *
+            player.speed *
+            dt;
+
+        player.y +=
+            dy *
+            player.speed *
+            dt;
+
+        player.directionX =
+            dx;
+
+        player.directionY =
+            dy;
+    }
+
+    player.x =
+        Math.max(
+            player.radius,
+            Math.min(
+                WORLD_WIDTH -
+                player.radius,
+                player.x
+            )
         );
+
+    player.y =
+        Math.max(
+            player.radius,
+            Math.min(
+                WORLD_HEIGHT -
+                player.radius,
+                player.y
+            )
+        );
+
+    updateEnemies(dt);
+    updateResources(dt);
+
+    maintainEnemies();
+
+    updateUI();
 }
 
-/* ============================================================
-   ACTUALIZAR ENEMIGOS
-   ============================================================ */
+/* =========================================================
+   ENEMIGOS UPDATE
+   ========================================================= */
 
 function updateEnemies(dt) {
 
-    for (const enemy of enemies) {
+    enemies.forEach(enemy => {
 
-        if (enemy.dead) continue;
+        if (enemy.dead) {
+
+            enemy.respawn -= dt;
+
+            if (
+                enemy.respawn <= 0
+            ) {
+
+                const pos =
+                    randomWorldPosition();
+
+                enemy.x = pos.x;
+                enemy.y = pos.y;
+
+                const data =
+                    enemyTypes[
+                        enemy.type
+                    ];
+
+                enemy.hp =
+                    data.hp;
+
+                enemy.maxHp =
+                    data.hp;
+
+                enemy.dead = false;
+            }
+
+            return;
+        }
 
         if (
-            enemy.hitFlash > 0
+            enemy.hitFlash >
+            0
         ) {
+
             enemy.hitFlash -= dt;
         }
 
@@ -2953,690 +2608,616 @@ function updateEnemies(dt) {
             );
 
         if (
-            d < 650 &&
-            d > player.radius + enemy.radius
+            d <
+            500
         ) {
 
-            const dir =
-                normalize(
-                    player.x - enemy.x,
-                    player.y - enemy.y
-                );
+            let dx =
+                player.x -
+                enemy.x;
 
-            enemy.x +=
-                dir.x *
-                enemy.speed *
-                dt;
+            let dy =
+                player.y -
+                enemy.y;
 
-            enemy.y +=
-                dir.y *
-                enemy.speed *
-                dt;
-        }
-
-        enemy.attackCooldown -= dt;
-
-        if (
-            d <=
-            player.radius +
-            enemy.radius +
-            8 &&
-            enemy.attackCooldown <= 0
-        ) {
-
-            enemy.attackCooldown =
-                1.1;
-
-            const damage =
-                Math.max(
-                    1,
-                    enemy.damage -
-                    player.defense
-                );
-
-            player.hp -=
-                damage;
-
-            addFloatingText(
-                player.x,
-                player.y - 40,
-                `-${damage}`,
-                "#ff5252"
-            );
+            const len =
+                Math.hypot(dx, dy);
 
             if (
-                player.hp <= 0
+                len >
+                enemy.radius +
+                player.radius +
+                5
             ) {
 
-                player.hp = 0;
+                dx /= len;
+                dy /= len;
 
-                player.dead = true;
+                enemy.x +=
+                    dx *
+                    enemy.speed *
+                    dt;
 
-                player.respawnTimer = 4;
+                enemy.y +=
+                    dy *
+                    enemy.speed *
+                    dt;
 
-                showMessage(
-                    "💀 Has muerto"
-                );
+            } else {
+
+                enemy.attackCooldown -=
+                    dt;
+
+                if (
+                    enemy.attackCooldown <=
+                    0
+                ) {
+
+                    enemy.attackCooldown =
+                        1.2;
+
+                    const damage =
+                        Math.max(
+                            1,
+                            enemy.damage -
+                            player.defense
+                        );
+
+                    player.hp -=
+                        damage;
+
+                    if (
+                        player.hp <=
+                        0
+                    ) {
+
+                        player.hp = 0;
+
+                        killPlayer();
+                    }
+                }
             }
         }
-
-        enemy.x =
-            clamp(
-                enemy.x,
-                enemy.radius,
-                WORLD_WIDTH - enemy.radius
-            );
-
-        enemy.y =
-            clamp(
-                enemy.y,
-                enemy.radius,
-                WORLD_HEIGHT - enemy.radius
-            );
-    }
-}
-
-/* ============================================================
-   MUERTE
-   ============================================================ */
-
-function updateDeath(dt) {
-
-    if (!player.dead) {
-        return;
-    }
-
-    player.respawnTimer -= dt;
-
-    if (
-        player.respawnTimer <= 0
-    ) {
-
-        player.dead = false;
-
-        player.hp =
-            player.maxHp;
-
-        player.mana =
-            player.maxMana;
-
-        player.x =
-            respawnPoint.x;
-
-        player.y =
-            respawnPoint.y;
-
-        showMessage(
-            "✨ Has regresado a la ciudad"
-        );
-    }
-}
-
-/* ============================================================
-   ACTUALIZAR RECURSOS
-   ============================================================ */
-
-function updateResources(dt) {
-
-    for (const resource of resources) {
-
-        if (
-            resource.respawnTimer > 0
-        ) {
-
-            resource.respawnTimer -= dt;
-
-            if (
-                resource.respawnTimer <= 0
-            ) {
-
-                resource.amount =
-                    randomInt(1, 3);
-
-                resource.respawnTimer = 0;
-            }
-        }
-    }
-}
-
-/* ============================================================
-   INTERACCIÓN
-   ============================================================ */
-
-function interact() {
-
-    /*
-       Recolección cercana.
-    */
-
-    for (const resource of resources) {
-
-        if (
-            resource.respawnTimer <= 0 &&
-            distance(
-                player,
-                resource
-            ) <= 65
-        ) {
-
-            gatherResource(
-                resource
-            );
-
-            return;
-        }
-    }
-
-    /*
-       NPC.
-    */
-
-    const npc =
-        getNearbyNPC();
-
-    if (npc) {
-
-        interactNPC(npc);
-
-        return;
-    }
-}
-
-/* ============================================================
-   NPC
-   ============================================================ */
-
-const npcs = [
-
-    {
-        id: "guardian",
-        name: "Guardián de Ceniza",
-        x: respawnPoint.x,
-        y: respawnPoint.y - 170,
-        color: "#d8d8d8"
-    },
-
-    {
-        id: "blacksmith",
-        name: "Herrero Aldric",
-        x: respawnPoint.x + 170,
-        y: respawnPoint.y + 30,
-        color: "#ff8b45"
-    },
-
-    {
-        id: "merchant",
-        name: "Mercader Lina",
-        x: respawnPoint.x - 170,
-        y: respawnPoint.y + 30,
-        color: "#ffd45c"
-    },
-
-    {
-        id: "master",
-        name: "Maestro Rokan",
-        x: respawnPoint.x,
-        y: respawnPoint.y + 170,
-        color: "#8db8ff"
-    }
-];
-
-function getNearbyNPC() {
-
-    for (const npc of npcs) {
-
-        if (
-            distance(
-                player,
-                npc
-            ) <= 90
-        ) {
-
-            return npc;
-        }
-    }
-
-    return null;
-}
-
-/* ============================================================
-   NPC INTERACCIÓN
-   ============================================================ */
-
-function interactNPC(npc) {
-
-    if (npc.id === "blacksmith") {
-
-        openBlacksmith();
-
-        return;
-    }
-
-    if (npc.id === "merchant") {
-
-        showMessage(
-            "🛒 Mercader Lina: ¡Bienvenido!"
-        );
-
-        return;
-    }
-
-    if (npc.id === "guardian") {
-
-        showMessage(
-            "🛡️ Guardián: Protege la ciudad."
-        );
-
-        return;
-    }
-
-    if (npc.id === "master") {
-
-        showMessage(
-            `✨ Maestro Rokan: Nivel ${player.level}`
-        );
-
-        return;
-    }
-}
-
-/* ============================================================
-   HERRERO
-   ============================================================ */
-
-function openBlacksmith() {
-
-    let panel =
-        document.getElementById(
-            "blacksmithPanel"
-        );
-
-    if (!panel) {
-
-        panel =
-            document.createElement("div");
-
-        panel.id =
-            "blacksmithPanel";
-
-        Object.assign(
-            panel.style,
-            {
-                position: "fixed",
-                left: "50%",
-                top: "50%",
-                transform:
-                    "translate(-50%,-50%)",
-                width:
-                    "min(90vw,380px)",
-                background:
-                    "rgba(20,15,12,.97)",
-                border:
-                    "2px solid #b27a38",
-                borderRadius:
-                    "15px",
-                padding:
-                    "18px",
-                zIndex:
-                    "99998",
-                color:
-                    "white",
-                textAlign:
-                    "center"
-            }
-        );
-
-        document.body.appendChild(
-            panel
-        );
-    }
-
-    panel.innerHTML = `
-
-        <h2>🔨 Herrero Aldric</h2>
-
-        <p>
-            Mejorar espada
-        </p>
-
-        <p>
-            🪙 100 monedas
-            <br>
-            ⛏️ 5 Hierro
-        </p>
-
-        <button
-            id="upgradeSwordButton"
-            style="
-                width:100%;
-                padding:12px;
-                margin-top:10px;
-                border:0;
-                border-radius:10px;
-                background:#9b6d2d;
-                color:white;
-                font-weight:bold;
-            "
-        >
-            MEJORAR ESPADA
-        </button>
-
-        <button
-            id="closeBlacksmithButton"
-            style="
-                width:100%;
-                padding:12px;
-                margin-top:8px;
-                border:0;
-                border-radius:10px;
-                background:#333;
-                color:white;
-            "
-        >
-            CERRAR
-        </button>
-    `;
-
-    panel.style.display = "block";
-
-    const upgrade =
-        document.getElementById(
-            "upgradeSwordButton"
-        );
-
-    const close =
-        document.getElementById(
-            "closeBlacksmithButton"
-        );
-
-    if (upgrade) {
-
-        upgrade.onclick =
-            upgradeSword;
-    }
-
-    if (close) {
-
-        close.onclick = () => {
-
-            panel.style.display =
-                "none";
-        };
-    }
-}
-
-function upgradeSword() {
-
-    if (
-        inventory.gold < 100
-    ) {
-
-        showMessage(
-            "❌ Necesitas 100 monedas"
-        );
-
-        return;
-    }
-
-    if (
-        inventory.iron < 5
-    ) {
-
-        showMessage(
-            "❌ Necesitas 5 Hierro"
-        );
-
-        return;
-    }
-
-    inventory.gold -= 100;
-    inventory.iron -= 5;
-
-    player.baseDamage += 5;
-
-    recalculatePlayerStats();
-
-    showMessage(
-        "⚔️ ¡Espada mejorada!"
-    );
-
-    saveGame();
-}
-
-/* ============================================================
-   MISIONES
-   ============================================================ */
-
-const quests = [
-
-    {
-        id: "primerosPasos",
-        name: "Primeros pasos",
-        description: "Derrota 3 enemigos.",
-        type: "kill",
-        target: 3,
-        progress: 0,
-        rewardGold: 100,
-        rewardXP: 50,
-        completed: false,
-        claimed: false
-    },
-
-    {
-        id: "lobos",
-        name: "Amenaza de los lobos",
-        description: "Derrota 5 lobos.",
-        type: "kill_wolf",
-        target: 5,
-        progress: 0,
-        rewardGold: 200,
-        rewardXP: 100,
-        completed: false,
-        claimed: false
-    },
-
-    {
-        id: "recursos",
-        name: "Recursos para la ciudad",
-        description: "Recolecta 10 recursos.",
-        type: "gather",
-        target: 10,
-        progress: 0,
-        rewardGold: 150,
-        rewardXP: 75,
-        completed: false,
-        claimed: false
-    }
-];
-
-/* ============================================================
-   PROGRESO MISIONES
-   ============================================================ */
-
-function updateQuestProgress(
-    type,
-    amount
-) {
-
-    for (const quest of quests) {
-
-        if (
-            quest.completed ||
-            quest.claimed
-        ) {
-            continue;
-        }
-
-        if (
-            quest.type === type
-        ) {
-
-            quest.progress =
-                Math.min(
-                    quest.target,
-                    quest.progress + amount
-                );
-
-            if (
-                quest.progress >=
-                quest.target
-            ) {
-
-                quest.completed = true;
-
-                showMessage(
-                    `📜 Misión completada: ${quest.name}`
-                );
-            }
-        }
-    }
-}
-
-/* ============================================================
-   RECOMPENSA MISIÓN
-   ============================================================ */
-
-function claimQuest(questId) {
-
-    const quest =
-        quests.find(
-            q => q.id === questId
-        );
-
-    if (!quest) return;
-
-    if (
-        !quest.completed ||
-        quest.claimed
-    ) {
-        return;
-    }
-
-    quest.claimed = true;
-
-    inventory.gold +=
-        quest.rewardGold;
-
-    gainXP(
-        quest.rewardXP
-    );
-
-    showMessage(
-        `🎁 Recompensa: ${quest.rewardGold} monedas`
-    );
-
-    markInventoryDirty();
-
-    saveGame();
-}
-
-/* ============================================================
-   TEXTOS FLOTANTES
-   ============================================================ */
-
-let floatingTexts = [];
-
-function addFloatingText(
-    x,
-    y,
-    text,
-    color = "#ffffff"
-) {
-
-    floatingTexts.push({
-
-        x,
-        y,
-
-        text,
-
-        color,
-
-        life: 1
     });
 }
 
-function updateFloatingTexts(dt) {
+/* =========================================================
+   RECURSOS UPDATE
+   ========================================================= */
 
-    for (const item of floatingTexts) {
+function updateResources(dt) {
 
-        item.y -=
-            35 * dt;
+    resources.forEach(resource => {
 
-        item.life -=
+        if (
+            !resource.collected
+        ) {
+            return;
+        }
+
+        resource.respawn -=
             dt;
+
+        if (
+            resource.respawn <=
+            0
+        ) {
+
+            resource.collected =
+                false;
+        }
+    });
+}
+
+/* =========================================================
+   RECOLECCIÓN
+   ========================================================= */
+
+function collectNearestResource() {
+
+    let nearest = null;
+    let best = 80;
+
+    resources.forEach(resource => {
+
+        if (
+            resource.collected
+        ) return;
+
+        const d =
+            distance(
+                player,
+                resource
+            );
+
+        if (
+            d <
+            best
+        ) {
+
+            best = d;
+            nearest = resource;
+        }
+    });
+
+    if (!nearest) {
+
+        showMessage(
+            "No hay recursos cerca."
+        );
+
+        return;
     }
 
-    floatingTexts =
-        floatingTexts.filter(
-            item => item.life > 0
+    const tool =
+        resourceTools[
+            nearest.type
+        ];
+
+    if (
+        tool &&
+        !tools[tool].equipped
+    ) {
+
+        showMessage(
+            "Necesitas " +
+            tools[tool].name
+        );
+
+        return;
+    }
+
+    nearest.collected =
+        true;
+
+    nearest.respawn =
+        20;
+
+    switch (
+        nearest.type
+    ) {
+
+        case "tree":
+
+            inventory.wood++;
+            break;
+
+        case "rock":
+
+            inventory.stone++;
+            break;
+
+        case "copper":
+
+            inventory.copper++;
+            break;
+
+        case "iron":
+
+            inventory.iron++;
+            break;
+    }
+
+    updateQuest(
+        "gather",
+        nearest.type
+    );
+
+    showMessage(
+        "⛏️ Recurso obtenido: " +
+        nearest.type
+    );
+
+    saveGame();
+}
+
+/* =========================================================
+   DOBLE TOQUE PARA RECOGER
+   ========================================================= */
+
+let lastTap = 0;
+
+canvas.addEventListener(
+    "pointerdown",
+    () => {
+
+        const now =
+            Date.now();
+
+        if (
+            now -
+            lastTap <
+            350
+        ) {
+
+            collectNearestResource();
+        }
+
+        lastTap = now;
+    }
+);
+
+/* =========================================================
+   MUERTE
+   ========================================================= */
+
+function killPlayer() {
+
+    player.dead = true;
+
+    player.respawnTimer = 3;
+
+    showMessage(
+        "☠️ Has muerto..."
+    );
+
+    saveGame();
+}
+
+function respawnPlayer() {
+
+    player.dead = false;
+
+    player.x = CITY_X;
+    player.y = CITY_Y;
+
+    player.hp =
+        player.maxHp;
+
+    player.mana =
+        player.maxMana;
+
+    showMessage(
+        "✨ Has regresado a la ciudad."
+    );
+
+    saveGame();
+}
+
+/* =========================================================
+   QUESTS
+   ========================================================= */
+
+const questDefinitions = {
+
+    firstSteps: {
+
+        id: "firstSteps",
+
+        name: "Primeros pasos",
+
+        description:
+            "Derrota 3 enemigos.",
+
+        type: "killAny",
+
+        target: 3,
+
+        rewardXP: 100,
+
+        rewardGold: 50
+    },
+
+    wolves: {
+
+        id: "wolves",
+
+        name: "Amenaza de los lobos",
+
+        description:
+            "Derrota 5 lobos.",
+
+        type: "kill",
+
+        targetType: "wolf",
+
+        target: 5,
+
+        rewardXP: 180,
+
+        rewardGold: 100
+    },
+
+    resources: {
+
+        id: "resources",
+
+        name: "Recursos para la ciudad",
+
+        description:
+            "Recolecta 10 recursos.",
+
+        type: "gatherAny",
+
+        target: 10,
+
+        rewardXP: 150,
+
+        rewardGold: 80
+    }
+};
+
+let quests = {
+
+    firstSteps: {
+        progress: 0,
+        completed: false
+    },
+
+    wolves: {
+        progress: 0,
+        completed: false
+    },
+
+    resources: {
+        progress: 0,
+        completed: false
+    }
+};
+
+function updateQuest(
+    action,
+    type
+) {
+
+    Object.values(
+        questDefinitions
+    ).forEach(def => {
+
+        const q =
+            quests[def.id];
+
+        if (
+            !q ||
+            q.completed
+        ) {
+            return;
+        }
+
+        if (
+            def.type ===
+            "killAny" &&
+            action === "kill"
+        ) {
+
+            q.progress++;
+        }
+
+        if (
+            def.type ===
+            "kill" &&
+            action === "kill" &&
+            def.targetType === type
+        ) {
+
+            q.progress++;
+        }
+
+        if (
+            def.type ===
+            "gatherAny" &&
+            action === "gather"
+        ) {
+
+            q.progress++;
+        }
+
+        if (
+            q.progress >=
+            def.target
+        ) {
+
+            q.progress =
+                def.target;
+
+            q.completed =
+                true;
+
+            inventory.gold +=
+                def.rewardGold;
+
+            gainXP(
+                def.rewardXP
+            );
+
+            showMessage(
+                "📜 Misión completada: " +
+                def.name
+            );
+        }
+    });
+
+    saveGame();
+}
+
+/* =========================================================
+   HERRERO
+   ========================================================= */
+
+function blacksmithUpgrade() {
+
+    if (
+        inventory.gold <
+        100
+    ) {
+
+        showMessage(
+            "Necesitas 100 monedas."
+        );
+
+        return;
+    }
+
+    if (
+        inventory.iron <
+        5
+    ) {
+
+        showMessage(
+            "Necesitas 5 de hierro."
+        );
+
+        return;
+    }
+
+    inventory.gold -=
+        100;
+
+    inventory.iron -=
+        5;
+
+    const weapon =
+        equipment.weapon;
+
+    if (!weapon) {
+
+        showMessage(
+            "No tienes arma equipada."
+        );
+
+        return;
+    }
+
+    weapon.damage =
+        (weapon.damage || 0) +
+        5;
+
+    showMessage(
+        "🔨 ¡Tu arma fue mejorada!"
+    );
+
+    recalculatePlayerStats();
+
+    saveGame();
+}
+
+/* =========================================================
+   CÁMARA
+   ========================================================= */
+
+const camera = {
+
+    x: 0,
+    y: 0
+};
+
+function updateCamera() {
+
+    camera.x =
+        player.x -
+        canvas.width / 2;
+
+    camera.y =
+        player.y -
+        canvas.height / 2;
+
+    camera.x =
+        Math.max(
+            0,
+            Math.min(
+                WORLD_WIDTH -
+                canvas.width,
+                camera.x
+            )
+        );
+
+    camera.y =
+        Math.max(
+            0,
+            Math.min(
+                WORLD_HEIGHT -
+                canvas.height,
+                camera.y
+            )
         );
 }
 
-/* ============================================================
-   MENSAJES
-   ============================================================ */
+/* =========================================================
+   TERRENO
+   ========================================================= */
 
-let messageText = "";
-let messageTimer = 0;
+const TERRAIN = {
 
-function showMessage(message) {
+    GRASS: 0,
+    WATER: 1,
+    SAND: 2,
+    FOREST: 3,
+    ROCK: 4
+};
 
-    messageText = message;
-    messageTimer = 2.4;
-}
+function terrainAt(x, y) {
 
-function updateMessage(dt) {
+    const wave =
+        Math.sin(
+            x * 0.002
+        ) +
+        Math.cos(
+            y * 0.002
+        );
+
+    const wave2 =
+        Math.sin(
+            (x + y) *
+            0.0013
+        );
 
     if (
-        messageTimer > 0
+        Math.abs(wave) >
+        1.65
     ) {
 
-        messageTimer -= dt;
-
-        if (
-            messageTimer <= 0
-        ) {
-
-            messageText = "";
-        }
+        return TERRAIN.WATER;
     }
+
+    if (
+        wave2 >
+        0.9
+    ) {
+
+        return TERRAIN.ROCK;
+    }
+
+    if (
+        wave2 <
+        -0.9
+    ) {
+
+        return TERRAIN.FOREST;
+    }
+
+    return TERRAIN.GRASS;
 }
 
-/* ============================================================
-   DIBUJO DEL TERRENO
-   ============================================================ */
+/* =========================================================
+   DIBUJAR TERRENO
+   ========================================================= */
 
 function drawTerrain() {
 
-    if (!ctx || !canvas) return;
-
     const startX =
         Math.floor(
-            (camera.x -
-                canvas.width / 2) /
-            TILE
+            camera.x / TILE
         ) - 1;
 
     const endX =
         Math.ceil(
-            (camera.x +
-                canvas.width / 2) /
-            TILE
+            (
+                camera.x +
+                canvas.width
+            ) / TILE
         ) + 1;
 
     const startY =
         Math.floor(
-            (camera.y -
-                canvas.height / 2) /
-            TILE
+            camera.y / TILE
         ) - 1;
 
     const endY =
         Math.ceil(
-            (camera.y +
-                canvas.height / 2) /
-            TILE
+            (
+                camera.y +
+                canvas.height
+            ) / TILE
         ) + 1;
 
     for (
@@ -3651,740 +3232,496 @@ function drawTerrain() {
             tx++
         ) {
 
+            if (
+                tx < 0 ||
+                ty < 0
+            ) {
+                continue;
+            }
+
+            const wx =
+                tx * TILE;
+
+            const wy =
+                ty * TILE;
+
             const terrain =
                 terrainAt(
-                    tx,
-                    ty
+                    wx,
+                    wy
                 );
 
-            let color =
-                "#315b35";
-
-            if (
-                terrain === TERRAIN.WATER
+            switch (
+                terrain
             ) {
 
-                color =
-                    "#245b7a";
+                case TERRAIN.WATER:
+
+                    ctx.fillStyle =
+                        "#245b7a";
+
+                    break;
+
+                case TERRAIN.FOREST:
+
+                    ctx.fillStyle =
+                        "#24462c";
+
+                    break;
+
+                case TERRAIN.ROCK:
+
+                    ctx.fillStyle =
+                        "#555a60";
+
+                    break;
+
+                default:
+
+                    ctx.fillStyle =
+                        "#315b35";
             }
-
-            else if (
-                terrain === TERRAIN.SAND
-            ) {
-
-                color =
-                    "#b99a62";
-            }
-
-            else if (
-                terrain === TERRAIN.FOREST
-            ) {
-
-                color =
-                    "#24462c";
-            }
-
-            else if (
-                terrain === TERRAIN.ROCK
-            ) {
-
-                color =
-                    "#555a60";
-            }
-
-            const sx =
-                tx * TILE -
-                camera.x +
-                canvas.width / 2;
-
-            const sy =
-                ty * TILE -
-                camera.y +
-                canvas.height / 2;
-
-            ctx.fillStyle = color;
 
             ctx.fillRect(
-                sx,
-                sy,
+                wx -
+                camera.x,
+                wy -
+                camera.y,
                 TILE + 1,
                 TILE + 1
             );
 
-            /*
-               Detalles del terreno.
-            */
-
-            const seed =
-                Math.sin(
-                    tx * 12.9898 +
-                    ty * 78.233
-                ) *
-                43758.5453;
-
-            const frac =
-                seed -
-                Math.floor(seed);
-
             if (
-                terrain === TERRAIN.GRASS &&
-                frac > 0.65
+                terrain ===
+                TERRAIN.GRASS
             ) {
 
                 ctx.fillStyle =
-                    "rgba(120,170,90,.22)";
+                    "rgba(255,255,255,.035)";
 
                 ctx.fillRect(
-                    sx + 15,
-                    sy + 18,
-                    3,
-                    12
+                    wx -
+                    camera.x +
+                    10,
+                    wy -
+                    camera.y +
+                    12,
+                    2,
+                    9
                 );
 
                 ctx.fillRect(
-                    sx + 21,
-                    sy + 12,
-                    3,
-                    16
+                    wx -
+                    camera.x +
+                    35,
+                    wy -
+                    camera.y +
+                    28,
+                    2,
+                    7
                 );
-            }
-
-            if (
-                terrain === TERRAIN.WATER
-            ) {
-
-                ctx.strokeStyle =
-                    "rgba(160,220,255,.18)";
-
-                ctx.lineWidth = 2;
-
-                ctx.beginPath();
-
-                ctx.moveTo(
-                    sx + 8,
-                    sy + 25
-                );
-
-                ctx.lineTo(
-                    sx + 35,
-                    sy + 25
-                );
-
-                ctx.stroke();
             }
         }
     }
 }
 
-/* ============================================================
+/* =========================================================
    CIUDAD
-   ============================================================ */
+   ========================================================= */
 
 function drawCity() {
 
-    if (!ctx || !canvas) return;
+    const x =
+        CITY_X -
+        camera.x;
 
-    const sx =
-        respawnPoint.x -
-        camera.x +
-        canvas.width / 2;
+    const y =
+        CITY_Y -
+        camera.y;
 
-    const sy =
-        respawnPoint.y -
-        camera.y +
-        canvas.height / 2;
+    ctx.save();
 
-    /*
-       Plaza.
-    */
+    ctx.fillStyle =
+        "#70614b";
 
     ctx.beginPath();
 
     ctx.arc(
-        sx,
-        sy,
-        250,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fillStyle =
-        "#8d7654";
-
-    ctx.fill();
-
-    /*
-       Camino.
-    */
-
-    ctx.strokeStyle =
-        "#c4a26a";
-
-    ctx.lineWidth = 90;
-
-    ctx.beginPath();
-
-    ctx.moveTo(
-        sx - 600,
-        sy
-    );
-
-    ctx.lineTo(
-        sx + 600,
-        sy
-    );
-
-    ctx.stroke();
-
-    ctx.beginPath();
-
-    ctx.moveTo(
-        sx,
-        sy - 600
-    );
-
-    ctx.lineTo(
-        sx,
-        sy + 600
-    );
-
-    ctx.stroke();
-
-    /*
-       Fuente.
-    */
-
-    ctx.beginPath();
-
-    ctx.arc(
-        sx,
-        sy,
-        55,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fillStyle =
-        "#4f687a";
-
-    ctx.fill();
-
-    ctx.beginPath();
-
-    ctx.arc(
-        sx,
-        sy,
-        38,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fillStyle =
-        "#3f88aa";
-
-    ctx.fill();
-
-    /*
-       Casas.
-    */
-
-    drawHouse(
-        sx - 270,
-        sy - 230
-    );
-
-    drawHouse(
-        sx + 270,
-        sy - 230
-    );
-
-    drawHouse(
-        sx - 270,
-        sy + 230
-    );
-
-    drawHouse(
-        sx + 270,
-        sy + 230
-    );
-
-    /*
-       Bandera.
-    */
-
-    ctx.strokeStyle =
-        "#35251a";
-
-    ctx.lineWidth = 5;
-
-    ctx.beginPath();
-
-    ctx.moveTo(
-        sx,
-        sy - 120
-    );
-
-    ctx.lineTo(
-        sx,
-        sy - 190
-    );
-
-    ctx.stroke();
-
-    ctx.fillStyle =
-        "#b62d2d";
-
-    ctx.beginPath();
-
-    ctx.moveTo(
-        sx,
-        sy - 188
-    );
-
-    ctx.lineTo(
-        sx + 55,
-        sy - 172
-    );
-
-    ctx.lineTo(
-        sx,
-        sy - 156
-    );
-
-    ctx.closePath();
-
-    ctx.fill();
-}
-
-function drawHouse(x, y) {
-
-    ctx.fillStyle =
-        "#6c4b35";
-
-    ctx.fillRect(
-        x - 55,
-        y - 45,
-        110,
-        90
-    );
-
-    ctx.fillStyle =
-        "#39261f";
-
-    ctx.beginPath();
-
-    ctx.moveTo(
-        x - 70,
-        y - 45
-    );
-
-    ctx.lineTo(
         x,
-        y - 100
+        y,
+        430,
+        0,
+        Math.PI * 2
     );
-
-    ctx.lineTo(
-        x + 70,
-        y - 45
-    );
-
-    ctx.closePath();
 
     ctx.fill();
 
     ctx.fillStyle =
-        "#263d4a";
+        "#91806a";
 
-    ctx.fillRect(
-        x - 16,
-        y - 2,
-        32,
-        47
+    ctx.beginPath();
+
+    ctx.arc(
+        x,
+        y,
+        300,
+        0,
+        Math.PI * 2
     );
-}
 
-/* ============================================================
-   RECURSOS
-   ============================================================ */
+    ctx.fill();
 
-function drawResources() {
+    /*
+       Plaza
+    */
 
-    if (!ctx || !canvas) return;
+    ctx.fillStyle =
+        "#b4a17e";
 
-    for (const resource of resources) {
+    ctx.beginPath();
 
-        if (
-            resource.respawnTimer > 0
-        ) {
-            continue;
-        }
+    ctx.arc(
+        x,
+        y,
+        115,
+        0,
+        Math.PI * 2
+    );
 
-        const sx =
-            resource.x -
-            camera.x +
-            canvas.width / 2;
+    ctx.fill();
 
-        const sy =
-            resource.y -
-            camera.y +
-            canvas.height / 2;
+    /*
+       Fuente
+    */
 
-        if (
-            sx < -80 ||
-            sx > canvas.width + 80 ||
-            sy < -80 ||
-            sy > canvas.height + 80
-        ) {
-            continue;
-        }
+    ctx.fillStyle =
+        "#4c9bc0";
 
-        if (
-            resource.type === "tree"
-        ) {
+    ctx.beginPath();
+
+    ctx.arc(
+        x,
+        y,
+        42,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.fill();
+
+    ctx.strokeStyle =
+        "#d8c59a";
+
+    ctx.lineWidth = 8;
+
+    ctx.stroke();
+
+    /*
+       Casas
+    */
+
+    const houses = [
+
+        [-230, -180],
+        [180, -180],
+        [-230, 130],
+        [180, 130]
+    ];
+
+    houses.forEach(
+        ([hx, hy]) => {
+
+            const px =
+                x + hx;
+
+            const py =
+                y + hy;
 
             ctx.fillStyle =
-                "#5a3823";
+                "#59483a";
 
             ctx.fillRect(
-                sx - 6,
-                sy - 5,
-                12,
-                35
+                px - 55,
+                py - 45,
+                110,
+                90
             );
 
             ctx.fillStyle =
-                "#2c6d35";
-
-            ctx.beginPath();
-
-            ctx.arc(
-                sx,
-                sy - 25,
-                28,
-                0,
-                Math.PI * 2
-            );
-
-            ctx.fill();
-        }
-
-        else if (
-            resource.type === "rock"
-        ) {
-
-            ctx.fillStyle =
-                "#777b80";
+                "#8b3e35";
 
             ctx.beginPath();
 
             ctx.moveTo(
-                sx - 22,
-                sy + 12
+                px - 70,
+                py - 45
             );
 
             ctx.lineTo(
-                sx - 15,
-                sy - 16
+                px,
+                py - 100
             );
 
             ctx.lineTo(
-                sx + 10,
-                sy - 23
-            );
-
-            ctx.lineTo(
-                sx + 25,
-                sy
-            );
-
-            ctx.lineTo(
-                sx + 12,
-                sy + 20
+                px + 70,
+                py - 45
             );
 
             ctx.closePath();
 
             ctx.fill();
         }
+    );
 
-        else if (
-            resource.type === "copper"
-        ) {
-
-            ctx.fillStyle =
-                "#b86a3b";
-
-            ctx.beginPath();
-
-            ctx.arc(
-                sx,
-                sy,
-                20,
-                0,
-                Math.PI * 2
-            );
-
-            ctx.fill();
-
-            ctx.fillStyle =
-                "#e2a071";
-
-            ctx.fillRect(
-                sx - 5,
-                sy - 8,
-                7,
-                14
-            );
-        }
-
-        else if (
-            resource.type === "iron"
-        ) {
-
-            ctx.fillStyle =
-                "#a6adb5";
-
-            ctx.beginPath();
-
-            ctx.arc(
-                sx,
-                sy,
-                20,
-                0,
-                Math.PI * 2
-            );
-
-            ctx.fill();
-
-            ctx.fillStyle =
-                "#e7edf2";
-
-            ctx.fillRect(
-                sx - 7,
-                sy - 9,
-                8,
-                14
-            );
-        }
-    }
+    ctx.restore();
 }
 
-/* ============================================================
-   NPCs
-   ============================================================ */
+/* =========================================================
+   RECURSOS DIBUJAR
+   ========================================================= */
 
-function drawNPCs() {
+function drawResources() {
 
-    if (!ctx || !canvas) return;
+    resources.forEach(resource => {
 
-    for (const npc of npcs) {
+        if (
+            resource.collected
+        ) {
+            return;
+        }
 
         const sx =
-            npc.x -
-            camera.x +
-            canvas.width / 2;
+            resource.x -
+            camera.x;
 
         const sy =
-            npc.y -
-            camera.y +
-            canvas.height / 2;
+            resource.y -
+            camera.y;
 
-        ctx.fillStyle =
-            npc.color;
+        if (
+            sx < -80 ||
+            sy < -80 ||
+            sx >
+                canvas.width +
+                80 ||
+            sy >
+                canvas.height +
+                80
+        ) {
 
-        ctx.beginPath();
+            return;
+        }
 
-        ctx.arc(
-            sx,
-            sy,
-            18,
-            0,
-            Math.PI * 2
-        );
+        ctx.save();
 
-        ctx.fill();
+        switch (
+            resource.type
+        ) {
 
-        ctx.fillStyle =
-            "#222";
+            case "tree":
+
+                ctx.fillStyle =
+                    "#70482d";
+
+                ctx.fillRect(
+                    sx - 7,
+                    sy,
+                    14,
+                    35
+                );
+
+                ctx.fillStyle =
+                    "#1c672f";
+
+                ctx.beginPath();
+
+                ctx.arc(
+                    sx,
+                    sy - 12,
+                    32,
+                    0,
+                    Math.PI * 2
+                );
+
+                ctx.fill();
+
+                break;
+
+            case "rock":
+
+                ctx.fillStyle =
+                    "#85898c";
+
+                ctx.beginPath();
+
+                ctx.arc(
+                    sx,
+                    sy,
+                    24,
+                    0,
+                    Math.PI * 2
+                );
+
+                ctx.fill();
+
+                break;
+
+            case "copper":
+
+                ctx.fillStyle =
+                    "#b86c42";
+
+                ctx.beginPath();
+
+                ctx.arc(
+                    sx,
+                    sy,
+                    24,
+                    0,
+                    Math.PI * 2
+                );
+
+                ctx.fill();
+
+                break;
+
+            case "iron":
+
+                ctx.fillStyle =
+                    "#b9c0c5";
+
+                ctx.beginPath();
+
+                ctx.arc(
+                    sx,
+                    sy,
+                    24,
+                    0,
+                    Math.PI * 2
+                );
+
+                ctx.fill();
+
+                break;
+        }
+
+        ctx.restore();
+    });
+}
+
+/* =========================================================
+   ENEMIGOS DIBUJAR
+   ========================================================= */
+
+function drawEnemies() {
+
+    enemies.forEach(enemy => {
+
+        if (enemy.dead) return;
+
+        const sx =
+            enemy.x -
+            camera.x;
+
+        const sy =
+            enemy.y -
+            camera.y;
+
+        if (
+            sx < -100 ||
+            sy < -100 ||
+            sx >
+                canvas.width +
+                100 ||
+            sy >
+                canvas.height +
+                100
+        ) {
+
+            return;
+        }
+
+        const data =
+            enemyTypes[
+                enemy.type
+            ];
+
+        ctx.save();
 
         ctx.font =
-            "bold 12px Arial";
+            "32px Arial";
 
         ctx.textAlign =
             "center";
 
+        ctx.textBaseline =
+            "middle";
+
+        if (
+            enemy.hitFlash >
+            0
+        ) {
+
+            ctx.globalAlpha =
+                0.55;
+        }
+
         ctx.fillText(
-            npc.name,
+            data.icon,
             sx,
-            sy - 28
+            sy
         );
-
-        ctx.textAlign =
-            "left";
-    }
-}
-
-/* ============================================================
-   ENEMIGOS
-   ============================================================ */
-
-function drawEnemies() {
-
-    if (!ctx || !canvas) return;
-
-    for (const enemy of enemies) {
-
-        if (enemy.dead) continue;
-
-        const sx =
-            enemy.x -
-            camera.x +
-            canvas.width / 2;
-
-        const sy =
-            enemy.y -
-            camera.y +
-            canvas.height / 2;
-
-        if (
-            sx < -100 ||
-            sx > canvas.width + 100 ||
-            sy < -100 ||
-            sy > canvas.height + 100
-        ) {
-            continue;
-        }
-
-        let color =
-            "#8c8c8c";
-
-        if (
-            enemy.type === "wolf"
-        ) {
-            color = "#777b80";
-        }
-
-        else if (
-            enemy.type === "boar"
-        ) {
-            color = "#76503c";
-        }
-
-        else if (
-            enemy.type === "goblin"
-        ) {
-            color = "#4e9b4e";
-        }
-
-        else if (
-            enemy.type === "orc"
-        ) {
-            color = "#70483c";
-        }
-
-        if (
-            enemy.hitFlash > 0
-        ) {
-            color = "#ffffff";
-        }
-
-        ctx.fillStyle =
-            color;
-
-        ctx.beginPath();
-
-        ctx.arc(
-            sx,
-            sy,
-            enemy.radius,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.fill();
 
         /*
-           Ojos.
+           barra de vida
         */
 
         ctx.fillStyle =
-            "#111";
-
-        ctx.beginPath();
-
-        ctx.arc(
-            sx - 7,
-            sy - 4,
-            3,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.arc(
-            sx + 7,
-            sy - 4,
-            3,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.fill();
-
-        /*
-           Barra de vida.
-        */
-
-        const barWidth =
-            enemy.radius * 2;
-
-        ctx.fillStyle =
-            "rgba(0,0,0,.65)";
+            "#401515";
 
         ctx.fillRect(
-            sx - barWidth / 2,
-            sy - enemy.radius - 12,
-            barWidth,
-            5
+            sx - 28,
+            sy - 34,
+            56,
+            6
         );
 
         ctx.fillStyle =
-            "#e84949";
+            "#d33";
 
         ctx.fillRect(
-            sx - barWidth / 2,
-            sy - enemy.radius - 12,
-            barWidth *
-                clamp(
-                    enemy.hp /
-                    enemy.maxHp,
-                    0,
-                    1
-                ),
-            5
+            sx - 28,
+            sy - 34,
+            56 *
+            (
+                enemy.hp /
+                enemy.maxHp
+            ),
+            6
         );
-    }
+
+        ctx.restore();
+    });
 }
 
-/* ============================================================
-   JUGADOR
-   ============================================================ */
+/* =========================================================
+   JUGADOR DIBUJAR
+   ========================================================= */
 
 function drawPlayer() {
 
-    if (!ctx || !canvas) return;
-
     const sx =
         player.x -
-        camera.x +
-        canvas.width / 2;
+        camera.x;
 
     const sy =
         player.y -
-        camera.y +
-        canvas.height / 2;
+        camera.y;
+
+    ctx.save();
 
     /*
-       Sombra.
+       sombra
     */
 
     ctx.fillStyle =
@@ -4395,8 +3732,8 @@ function drawPlayer() {
     ctx.ellipse(
         sx,
         sy + 18,
-        25,
-        10,
+        22,
+        9,
         0,
         0,
         Math.PI * 2
@@ -4405,18 +3742,18 @@ function drawPlayer() {
     ctx.fill();
 
     /*
-       Cuerpo.
+       cuerpo
     */
 
     ctx.fillStyle =
-        "#344c69";
+        player.color;
 
     ctx.beginPath();
 
     ctx.arc(
         sx,
         sy,
-        21,
+        20,
         0,
         Math.PI * 2
     );
@@ -4424,39 +3761,18 @@ function drawPlayer() {
     ctx.fill();
 
     /*
-       Armadura.
-    */
-
-    ctx.strokeStyle =
-        "#d3d8df";
-
-    ctx.lineWidth = 4;
-
-    ctx.beginPath();
-
-    ctx.arc(
-        sx,
-        sy - 4,
-        13,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.stroke();
-
-    /*
-       Cabeza.
+       armadura
     */
 
     ctx.fillStyle =
-        "#d2a07c";
+        "#596675";
 
     ctx.beginPath();
 
     ctx.arc(
         sx,
-        sy - 18,
-        10,
+        sy + 4,
+        16,
         0,
         Math.PI * 2
     );
@@ -4464,61 +3780,67 @@ function drawPlayer() {
     ctx.fill();
 
     /*
-       Casco.
+       cabeza
     */
 
     ctx.fillStyle =
-        "#626c79";
+        "#d9b38c";
 
     ctx.beginPath();
 
     ctx.arc(
         sx,
-        sy - 21,
+        sy - 17,
+        11,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.fill();
+
+    /*
+       casco
+    */
+
+    ctx.fillStyle =
+        "#a8afb8";
+
+    ctx.beginPath();
+
+    ctx.arc(
+        sx,
+        sy - 20,
         12,
         Math.PI,
-        0
+        Math.PI * 2
     );
 
     ctx.fill();
 
     /*
-       Espada.
+       espada
     */
-
-    let dx =
-        player.directionX;
-
-    let dy =
-        player.directionY;
-
-    if (
-        Math.abs(dx) +
-        Math.abs(dy) < 0.1
-    ) {
-
-        dx = 0;
-        dy = 1;
-    }
 
     const swordX =
         sx +
-        dx * 32;
+        player.directionX *
+        28;
 
     const swordY =
         sy +
-        dy * 32;
+        player.directionY *
+        28;
 
     ctx.strokeStyle =
-        "#e7e9ee";
+        "#e4e9ee";
 
     ctx.lineWidth = 5;
 
     ctx.beginPath();
 
     ctx.moveTo(
-        sx + dx * 12,
-        sy + dy * 12
+        sx,
+        sy
     );
 
     ctx.lineTo(
@@ -4528,35 +3850,17 @@ function drawPlayer() {
 
     ctx.stroke();
 
-    ctx.strokeStyle =
-        "#a8793c";
-
-    ctx.lineWidth = 3;
-
-    ctx.beginPath();
-
-    ctx.moveTo(
-        sx + dx * 5 - dy * 8,
-        sy + dy * 5 + dx * 8
-    );
-
-    ctx.lineTo(
-        sx + dx * 5 + dy * 8,
-        sy + dy * 5 - dx * 8
-    );
-
-    ctx.stroke();
-
     /*
-       Ataque.
+       ataque
     */
 
     if (
-        player.attackAnimation > 0
+        player.attackAnimation >
+        0
     ) {
 
         ctx.strokeStyle =
-            "rgba(255,255,255,.75)";
+            "rgba(255,255,255,.8)";
 
         ctx.lineWidth = 5;
 
@@ -4565,803 +3869,1472 @@ function drawPlayer() {
         ctx.arc(
             sx,
             sy,
-            65,
-            -1.2,
-            1.2
+            player.attackRange,
+            -1,
+            1
         );
 
         ctx.stroke();
     }
 
     /*
-       Furia.
+       nombre
     */
 
-    if (
-        player.rageTimer > 0
-    ) {
-
-        ctx.strokeStyle =
-            "rgba(255,100,30,.8)";
-
-        ctx.lineWidth = 4;
-
-        ctx.beginPath();
-
-        ctx.arc(
-            sx,
-            sy,
-            32 +
-            Math.sin(
-                performance.now() / 100
-            ) * 4,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.stroke();
-    }
-}
-
-/* ============================================================
-   FLOATING TEXT
-   ============================================================ */
-
-function drawFloatingTexts() {
-
-    if (!ctx || !canvas) return;
-
     ctx.font =
-        "bold 15px Arial";
+        "bold 13px Arial";
 
     ctx.textAlign =
         "center";
 
-    for (const item of floatingTexts) {
+    ctx.fillStyle =
+        "#fff";
+
+    ctx.fillText(
+        player.name,
+        sx,
+        sy - 48
+    );
+
+    ctx.restore();
+}
+
+/* =========================================================
+   NPC
+   ========================================================= */
+
+const npcs = [
+
+    {
+        name: "Guardián de Ceniza",
+        icon: "🛡️",
+        x: CITY_X - 180,
+        y: CITY_Y
+    },
+
+    {
+        name: "Herrero Aldric",
+        icon: "🔨",
+        x: CITY_X + 180,
+        y: CITY_Y - 100
+    },
+
+    {
+        name: "Mercader Lina",
+        icon: "🛒",
+        x: CITY_X + 180,
+        y: CITY_Y + 100
+    },
+
+    {
+        name: "Maestro Rokan",
+        icon: "📜",
+        x: CITY_X - 180,
+        y: CITY_Y + 100
+    }
+];
+
+function drawNPCs() {
+
+    npcs.forEach(npc => {
 
         const sx =
-            item.x -
-            camera.x +
-            canvas.width / 2;
+            npc.x -
+            camera.x;
 
         const sy =
-            item.y -
-            camera.y +
-            canvas.height / 2;
+            npc.y -
+            camera.y;
 
-        ctx.globalAlpha =
-            clamp(
-                item.life,
-                0,
-                1
-            );
+        ctx.save();
 
-        ctx.fillStyle =
-            item.color;
+        ctx.font =
+            "32px Arial";
+
+        ctx.textAlign =
+            "center";
+
+        ctx.textBaseline =
+            "middle";
 
         ctx.fillText(
-            item.text,
+            npc.icon,
             sx,
             sy
         );
-    }
 
-    ctx.globalAlpha = 1;
+        ctx.font =
+            "12px Arial";
 
-    ctx.textAlign =
-        "left";
+        ctx.fillStyle =
+            "#fff";
+
+        ctx.fillText(
+            npc.name,
+            sx,
+            sy + 30
+        );
+
+        ctx.restore();
+    });
 }
 
-/* ============================================================
+/* =========================================================
    MINIMAPA
-   ============================================================ */
+   ========================================================= */
 
 function drawMinimap() {
 
-    if (!miniCtx || !miniCanvas) {
-        return;
-    }
+    const size = 130;
 
-    const w =
-        miniCanvas.width;
+    const x =
+        canvas.width -
+        size -
+        15;
 
-    const h =
-        miniCanvas.height;
+    const y = 15;
 
-    miniCtx.clearRect(
-        0,
-        0,
-        w,
-        h
+    ctx.save();
+
+    ctx.fillStyle =
+        "rgba(0,0,0,.65)";
+
+    ctx.fillRect(
+        x,
+        y,
+        size,
+        size
     );
 
-    miniCtx.fillStyle =
-        "#25352a";
+    ctx.strokeStyle =
+        "#c8a85d";
 
-    miniCtx.fillRect(
-        0,
-        0,
-        w,
-        h
+    ctx.strokeRect(
+        x,
+        y,
+        size,
+        size
     );
 
-    const sx =
-        w / WORLD_WIDTH;
+    const px =
+        x +
+        (
+            player.x /
+            WORLD_WIDTH
+        ) *
+        size;
 
-    const sy =
-        h / WORLD_HEIGHT;
+    const py =
+        y +
+        (
+            player.y /
+            WORLD_HEIGHT
+        ) *
+        size;
 
-    /*
-       Recursos.
-    */
+    ctx.fillStyle =
+        "#fff";
 
-    for (const resource of resources) {
+    ctx.beginPath();
 
-        if (
-            resource.respawnTimer > 0
-        ) {
-            continue;
-        }
-
-        let color =
-            "#4c9c54";
-
-        if (
-            resource.type === "iron"
-        ) {
-            color = "#b5b8bf";
-        }
-
-        else if (
-            resource.type === "copper"
-        ) {
-            color = "#b76e45";
-        }
-
-        else if (
-            resource.type === "rock"
-        ) {
-            color = "#777";
-        }
-
-        miniCtx.fillStyle =
-            color;
-
-        miniCtx.fillRect(
-            resource.x * sx,
-            resource.y * sy,
-            2,
-            2
-        );
-    }
-
-    /*
-       Enemigos.
-    */
-
-    miniCtx.fillStyle =
-        "#e94b4b";
-
-    for (const enemy of enemies) {
-
-        if (enemy.dead) continue;
-
-        miniCtx.fillRect(
-            enemy.x * sx,
-            enemy.y * sy,
-            3,
-            3
-        );
-    }
-
-    /*
-       Ciudad.
-    */
-
-    miniCtx.fillStyle =
-        "#d0a654";
-
-    miniCtx.beginPath();
-
-    miniCtx.arc(
-        respawnPoint.x * sx,
-        respawnPoint.y * sy,
-        CITY_RADIUS * sx,
-        0,
-        Math.PI * 2
-    );
-
-    miniCtx.fill();
-
-    /*
-       Jugador.
-    */
-
-    miniCtx.fillStyle =
-        "#ffffff";
-
-    miniCtx.beginPath();
-
-    miniCtx.arc(
-        player.x * sx,
-        player.y * sy,
+    ctx.arc(
+        px,
+        py,
         4,
         0,
         Math.PI * 2
     );
 
-    miniCtx.fill();
+    ctx.fill();
+
+    enemies.forEach(enemy => {
+
+        if (enemy.dead) return;
+
+        ctx.fillStyle =
+            "#d33";
+
+        ctx.fillRect(
+            x +
+            (
+                enemy.x /
+                WORLD_WIDTH
+            ) *
+            size -
+            1,
+            y +
+            (
+                enemy.y /
+                WORLD_HEIGHT
+            ) *
+            size -
+            1,
+            3,
+            3
+        );
+    });
+
+    ctx.restore();
 }
 
-/* ============================================================
-   HUD
-   ============================================================ */
+/* =========================================================
+   DRAW
+   ========================================================= */
 
-function setTextByIds(
-    ids,
-    value
-) {
+function draw() {
 
-    for (const id of ids) {
+    try {
 
-        const element =
-            document.getElementById(id);
+        updateCamera();
 
-        if (element) {
-
-            element.textContent =
-                value;
-
-            return;
-        }
-    }
-}
-
-function setBarByIds(
-    ids,
-    percent
-) {
-
-    const value =
-        clamp(
-            percent,
+        ctx.clearRect(
             0,
-            1
-        ) * 100;
+            0,
+            canvas.width,
+            canvas.height
+        );
 
-    for (const id of ids) {
+        ctx.fillStyle =
+            "#101820";
 
-        const element =
-            document.getElementById(id);
+        ctx.fillRect(
+            0,
+            0,
+            canvas.width,
+            canvas.height
+        );
 
-        if (element) {
+        drawTerrain();
 
-            element.style.width =
-                `${value}%`;
+        drawCity();
 
-            return;
-        }
+        drawResources();
+
+        drawNPCs();
+
+        drawEnemies();
+
+        drawPlayer();
+
+        drawMinimap();
+
+    } catch (error) {
+
+        console.error(
+            "Error de render:",
+            error
+        );
+
+        /*
+           Evita que un error de dibujo
+           deje el juego completamente muerto.
+        */
     }
 }
 
-/* ============================================================
-   ACTUALIZAR HUD
-   ============================================================ */
+/* =========================================================
+   HUD
+   ========================================================= */
+
+let lastUIUpdate = 0;
 
 function updateUI() {
 
-    setTextByIds(
-        [
-            "levelText",
-            "playerLevel",
-            "level"
-        ],
-        `Nivel ${player.level}`
-    );
-
-    setTextByIds(
-        [
-            "goldText",
-            "gold",
-            "playerGold"
-        ],
-        `🪙 ${formatNumber(inventory.gold)}`
-    );
-
-    setTextByIds(
-        [
-            "hpText",
-            "playerHp"
-        ],
-        `${Math.ceil(player.hp)} / ${player.maxHp}`
-    );
-
-    setTextByIds(
-        [
-            "manaText",
-            "playerMana"
-        ],
-        `${Math.ceil(player.mana)} / ${player.maxMana}`
-    );
-
-    setTextByIds(
-        [
-            "xpText",
-            "playerXP"
-        ],
-        `${Math.floor(player.xp)} / ${player.xpNeeded}`
-    );
-
-    setBarByIds(
-        [
-            "hpBar",
-            "healthBar",
-            "playerHpBar"
-        ],
-        player.hp /
-        player.maxHp
-    );
-
-    setBarByIds(
-        [
-            "manaBar",
-            "playerManaBar"
-        ],
-        player.mana /
-        player.maxMana
-    );
-
-    setBarByIds(
-        [
-            "xpBar",
-            "experienceBar",
-            "playerXpBar"
-        ],
-        player.xp /
-        player.xpNeeded
-    );
+    const now =
+        performance.now();
 
     /*
-       Inventario:
-       Solo se reconstruye cuando cambió.
+       Evitamos reconstruir el inventario
+       10 veces por segundo.
     */
-
-    const panel =
-        getInventoryPanel();
 
     if (
-        panel &&
-        panel.style.display !== "none" &&
-        inventoryDirty
+        now -
+        lastUIUpdate <
+        250
     ) {
 
-        renderInventoryPanel();
+        return;
     }
 
-    /*
-       Mensaje.
-    */
+    lastUIUpdate = now;
 
-    setTextByIds(
-        [
-            "messageText",
-            "gameMessage",
-            "notification"
-        ],
-        messageText
-    );
+    const hpBar =
+        document.getElementById(
+            "hpBar"
+        );
+
+    if (hpBar) {
+
+        hpBar.style.width =
+            (
+                player.hp /
+                player.maxHp *
+                100
+            ) +
+            "%";
+    }
+
+    const xpBar =
+        document.getElementById(
+            "xpBar"
+        );
+
+    if (xpBar) {
+
+        xpBar.style.width =
+            (
+                player.xp /
+                player.xpNeeded *
+                100
+            ) +
+            "%";
+    }
+
+    const hp =
+        document.getElementById(
+            "hp"
+        );
+
+    if (hp) {
+
+        hp.textContent =
+            Math.round(
+                player.hp
+            ) +
+            "/" +
+            player.maxHp;
+    }
+
+    const level =
+        document.getElementById(
+            "level"
+        );
+
+    if (level) {
+
+        level.textContent =
+            "Nivel " +
+            player.level;
+    }
+
+    const gold =
+        document.getElementById(
+            "gold"
+        );
+
+    if (gold) {
+
+        gold.textContent =
+            inventory.gold;
+    }
+
+    const wood =
+        document.getElementById(
+            "wood"
+        );
+
+    if (wood) {
+
+        wood.textContent =
+            inventory.wood;
+    }
+
+    const stone =
+        document.getElementById(
+            "stone"
+        );
+
+    if (stone) {
+
+        stone.textContent =
+            inventory.stone;
+    }
+
+    const copper =
+        document.getElementById(
+            "copper"
+        );
+
+    if (copper) {
+
+        copper.textContent =
+            inventory.copper;
+    }
+
+    const iron =
+        document.getElementById(
+            "iron"
+        );
+
+    if (iron) {
+
+        iron.textContent =
+            inventory.iron;
+    }
+
+    const fish =
+        document.getElementById(
+            "fish"
+        );
+
+    if (fish) {
+
+        fish.textContent =
+            inventory.fish;
+    }
+
+    const playerName =
+        document.getElementById(
+            "playerName"
+        );
+
+    if (playerName) {
+
+        playerName.textContent =
+            player.name;
+    }
+
+    const hudText =
+        document.getElementById(
+            "hudText"
+        );
+
+    if (hudText) {
+
+        hudText.textContent =
+            player.classId +
+            " • Nivel " +
+            player.level +
+            " • ⚔️ " +
+            player.damage +
+            " • 🛡️ " +
+            player.defense;
+    }
+
+    const manaBar =
+        document.getElementById(
+            "manaBar"
+        );
+
+    if (manaBar) {
+
+        manaBar.style.width =
+            (
+                player.mana /
+                player.maxMana *
+                100
+            ) +
+            "%";
+    }
 }
 
-/* ============================================================
-   BOTÓN DE ATAQUE
-   ============================================================ */
+/* =========================================================
+   MENSAJES
+   ========================================================= */
 
-function setupAttackButton() {
+let messageTimer = 0;
 
-    const candidates = [
-        "attackButton",
-        "attackBtn",
-        "btnAttack",
-        "attack"
-    ];
+function showMessage(text) {
 
-    let button = null;
+    const message =
+        document.getElementById(
+            "message"
+        );
 
-    for (const id of candidates) {
+    if (message) {
 
-        const el =
-            document.getElementById(id);
+        message.textContent =
+            text;
 
-        if (el) {
-            button = el;
-            break;
-        }
+        messageTimer = 3;
     }
 
-    if (!button) return;
+    console.log(text);
+}
 
-    button.addEventListener(
+/* =========================================================
+   BOTÓN ATAQUE
+   ========================================================= */
+
+const attackButton =
+    document.getElementById(
+        "attackButton"
+    );
+
+if (attackButton) {
+
+    attackButton.addEventListener(
         "pointerdown",
-        event => {
+        e => {
 
-            event.preventDefault();
+            e.preventDefault();
 
             attack();
         }
     );
 }
 
-/* ============================================================
-   BOTONES DE HABILIDADES
-   ============================================================ */
+/* =========================================================
+   BOTONES DINÁMICOS
+   ========================================================= */
 
-function setupSkillButtons() {
+function createMobileButtons() {
 
-    for (const skill of skills) {
-
-        const ids = [
-            skill.id,
-            "skill_" + skill.id,
-            "skill-" + skill.id
-        ];
-
-        for (const id of ids) {
-
-            const button =
-                document.getElementById(id);
-
-            if (!button) continue;
-
-            button.addEventListener(
-                "pointerdown",
-                event => {
-
-                    event.preventDefault();
-
-                    useSkill(
-                        skill.id
-                    );
-                }
-            );
-
-            break;
-        }
-    }
-}
-
-/* ============================================================
-   BOTÓN INVENTARIO
-   ============================================================ */
-
-function setupInventoryButton() {
-
-    const candidates = [
-        "inventoryButton",
-        "inventoryBtn",
-        "btnInventory",
-        "openInventory"
-    ];
-
-    let button = null;
-
-    for (const id of candidates) {
-
-        const el =
-            document.getElementById(id);
-
-        if (el) {
-
-            button = el;
-            break;
-        }
-    }
-
-    if (!button) return;
-
-    button.addEventListener(
-        "click",
-        () => {
-
-            const panel =
-                getInventoryPanel();
-
-            if (!panel) return;
-
-            const hidden =
-                panel.style.display === "none" ||
-                getComputedStyle(panel).display === "none";
-
-            panel.style.display =
-                hidden
-                    ? "block"
-                    : "none";
-
-            if (hidden) {
-
-                inventoryDirty = true;
-
-                renderInventoryPanel();
-            }
-        }
-    );
-}
-
-/* ============================================================
-   BOTÓN DE POCIÓN
-   ============================================================ */
-
-function setupPotionButton() {
-
-    const candidates = [
-        "potionButton",
-        "potionBtn",
-        "btnPotion",
-        "usePotionButton"
-    ];
-
-    let button = null;
-
-    for (const id of candidates) {
-
-        const el =
-            document.getElementById(id);
-
-        if (el) {
-
-            button = el;
-            break;
-        }
-    }
-
-    if (!button) return;
-
-    button.addEventListener(
-        "pointerdown",
-        event => {
-
-            event.preventDefault();
-
-            usePotion();
-        }
-    );
-}
-
-/* ============================================================
-   RESIZE
-   ============================================================ */
-
-function resizeCanvas() {
-
-    if (!canvas) return;
-
-    const rect =
-        canvas.getBoundingClientRect();
-
-    const dpr =
-        Math.min(
-            window.devicePixelRatio || 1,
-            2
-        );
-
-    const width =
-        Math.max(
-            1,
-            Math.floor(rect.width * dpr)
-        );
-
-    const height =
-        Math.max(
-            1,
-            Math.floor(rect.height * dpr)
-        );
+    /*
+       Inventario
+    */
 
     if (
-        canvas.width !== width ||
-        canvas.height !== height
+        !document.getElementById(
+            "openInventoryButton"
+        )
     ) {
 
-        canvas.width =
-            width;
+        const button =
+            document.createElement(
+                "button"
+            );
 
-        canvas.height =
-            height;
+        button.id =
+            "openInventoryButton";
+
+        button.textContent =
+            "🎒";
+
+        button.style.cssText = `
+            position:fixed;
+            right:18px;
+            bottom:145px;
+            width:58px;
+            height:58px;
+            border-radius:50%;
+            border:2px solid #b99650;
+            background:rgba(20,24,30,.9);
+            color:white;
+            font-size:27px;
+            z-index:3000;
+        `;
+
+        button.onclick =
+            openInventory;
+
+        document.body.appendChild(
+            button
+        );
     }
 
     /*
-       Dibujamos usando píxeles CSS.
+       Poción
     */
 
-    ctx.setTransform(
-        dpr,
-        0,
-        0,
-        dpr,
-        0,
-        0
+    if (
+        !document.getElementById(
+            "potionButton"
+        )
+    ) {
+
+        const button =
+            document.createElement(
+                "button"
+            );
+
+        button.id =
+            "potionButton";
+
+        button.textContent =
+            "🧪";
+
+        button.style.cssText = `
+            position:fixed;
+            right:88px;
+            bottom:145px;
+            width:58px;
+            height:58px;
+            border-radius:50%;
+            border:2px solid #b34d4d;
+            background:rgba(20,24,30,.9);
+            color:white;
+            font-size:25px;
+            z-index:3000;
+        `;
+
+        button.onclick =
+            usePotion;
+
+        document.body.appendChild(
+            button
+        );
+    }
+
+    /*
+       Recolectar
+    */
+
+    if (
+        !document.getElementById(
+            "gatherButton"
+        )
+    ) {
+
+        const button =
+            document.createElement(
+                "button"
+            );
+
+        button.id =
+            "gatherButton";
+
+        button.textContent =
+            "⛏️";
+
+        button.style.cssText = `
+            position:fixed;
+            right:158px;
+            bottom:145px;
+            width:58px;
+            height:58px;
+            border-radius:50%;
+            border:2px solid #7893a8;
+            background:rgba(20,24,30,.9);
+            color:white;
+            font-size:25px;
+            z-index:3000;
+        `;
+
+        button.onclick =
+            collectNearestResource;
+
+        document.body.appendChild(
+            button
+        );
+    }
+}
+
+/* =========================================================
+   MENÚ DE HABILIDADES
+   ========================================================= */
+
+function createSkillBar() {
+
+    let bar =
+        document.getElementById(
+            "skillBarDynamic"
+        );
+
+    if (!bar) {
+
+        bar =
+            document.createElement(
+                "div"
+            );
+
+        bar.id =
+            "skillBarDynamic";
+
+        bar.style.cssText = `
+            position:fixed;
+            left:50%;
+            transform:translateX(-50%);
+            bottom:15px;
+            display:flex;
+            gap:6px;
+            z-index:2500;
+            background:rgba(10,12,17,.72);
+            padding:7px;
+            border-radius:14px;
+        `;
+
+        document.body.appendChild(
+            bar
+        );
+    }
+
+    bar.innerHTML = "";
+
+    const skillIds = [
+        "powerStrike",
+        "rapidShot",
+        "fireball",
+        "shadowStrike",
+        "survival",
+        "heal",
+        "whirlwind",
+        "rage",
+        "execution",
+        "swordRain"
+    ];
+
+    skillIds.forEach(
+        skillId => {
+
+            const skill =
+                skills[skillId];
+
+            if (!skill) return;
+
+            const button =
+                document.createElement(
+                    "button"
+                );
+
+            const unlocked =
+                player.level >=
+                skill.level;
+
+            button.textContent =
+                skill.icon;
+
+            button.title =
+                skill.name +
+                " — Nivel " +
+                skill.level;
+
+            button.style.cssText = `
+                width:48px;
+                height:48px;
+                border-radius:10px;
+                border:1px solid #78643b;
+                background:${
+                    unlocked
+                    ? "#202936"
+                    : "#11151a"
+                };
+                opacity:${
+                    unlocked
+                    ? "1"
+                    : ".45"
+                };
+                color:white;
+                font-size:22px;
+            `;
+
+            button.onclick =
+                () =>
+                    useSkill(
+                        skillId
+                    );
+
+            bar.appendChild(
+                button
+            );
+        }
     );
 }
 
-window.addEventListener(
-    "resize",
-    resizeCanvas
-);
+/* =========================================================
+   CREACIÓN DE PERSONAJES
+   ========================================================= */
 
-/* ============================================================
-   DIBUJAR
-   ============================================================ */
+function getCharacters() {
 
-function draw() {
+    try {
 
-    if (!ctx || !canvas) {
+        return JSON.parse(
+            localStorage.getItem(
+                CHARACTERS_KEY
+            )
+        ) || [];
+
+    } catch {
+
+        return [];
+    }
+}
+
+function saveCharacters(
+    characters
+) {
+
+    localStorage.setItem(
+        CHARACTERS_KEY,
+        JSON.stringify(
+            characters
+        )
+    );
+}
+
+/* =========================================================
+   CREAR PERSONAJE UI
+   ========================================================= */
+
+function showCharacterCreation() {
+
+    removeCharacterScreens();
+
+    const overlay =
+        document.createElement(
+            "div"
+        );
+
+    overlay.id =
+        "characterCreationScreen";
+
+    overlay.style.cssText = `
+        position:fixed;
+        inset:0;
+        z-index:100000;
+        overflow:auto;
+        background:
+            radial-gradient(
+                circle at center,
+                #28394b,
+                #0b0f15 70%
+            );
+        color:white;
+        font-family:Arial,sans-serif;
+        padding:25px 15px;
+    `;
+
+    overlay.innerHTML = `
+
+        <div style="
+            width:min(600px,100%);
+            margin:auto;
+            text-align:center;
+        ">
+
+            <div style="
+                font-size:42px;
+                font-weight:bold;
+                margin-top:10px;
+            ">
+                ⚔️ REINOS DE CENIZA
+            </div>
+
+            <div style="
+                color:#d3b467;
+                margin:8px;
+                font-size:18px;
+            ">
+                CREAR PERSONAJE
+            </div>
+
+            <div style="
+                background:rgba(10,13,18,.9);
+                border:2px solid #796035;
+                border-radius:18px;
+                padding:20px;
+                margin-top:20px;
+            ">
+
+                <div style="
+                    font-size:70px;
+                    margin-bottom:10px;
+                " id="creationAvatar">
+                    🧙
+                </div>
+
+                <input
+                    id="characterNameInput"
+                    maxlength="16"
+                    placeholder="Nombre del personaje"
+                    style="
+                        width:100%;
+                        padding:14px;
+                        border-radius:10px;
+                        border:1px solid #666;
+                        background:#171d25;
+                        color:white;
+                        font-size:17px;
+                        text-align:center;
+                    "
+                >
+
+                <h3>
+                    Apariencia
+                </h3>
+
+                <div style="
+                    display:flex;
+                    gap:8px;
+                    justify-content:center;
+                    flex-wrap:wrap;
+                ">
+
+                    <button
+                        class="appearanceButton"
+                        data-color="#d9b38c"
+                    >
+                        🧑
+                    </button>
+
+                    <button
+                        class="appearanceButton"
+                        data-color="#a86f55"
+                    >
+                        🧑🏽
+                    </button>
+
+                    <button
+                        class="appearanceButton"
+                        data-color="#704936"
+                    >
+                        🧑🏿
+                    </button>
+
+                </div>
+
+                <h3>
+                    Elige tu clase
+                </h3>
+
+                <div
+                    id="classSelection"
+                    style="
+                        display:grid;
+                        grid-template-columns:
+                        repeat(
+                            auto-fit,
+                            minmax(130px,1fr)
+                        );
+                        gap:8px;
+                    "
+                ></div>
+
+                <button
+                    id="createCharacterConfirm"
+                    style="
+                        width:100%;
+                        margin-top:18px;
+                        padding:15px;
+                        border:0;
+                        border-radius:12px;
+                        background:#80632e;
+                        color:white;
+                        font-size:18px;
+                        font-weight:bold;
+                    "
+                >
+                    ⚔️ CREAR PERSONAJE
+                </button>
+
+            </div>
+
+        </div>
+    `;
+
+    document.body.appendChild(
+        overlay
+    );
+
+    let selectedClass =
+        "warrior";
+
+    let selectedColor =
+        "#d9b38c";
+
+    const classContainer =
+        document.getElementById(
+            "classSelection"
+        );
+
+    Object.values(
+        classes
+    ).forEach(cls => {
+
+        const button =
+            document.createElement(
+                "button"
+            );
+
+        button.style.cssText = `
+            padding:12px;
+            border-radius:12px;
+            border:2px solid ${
+                cls.id ===
+                selectedClass
+                    ? "#e0b85c"
+                    : "#343b46"
+            };
+            background:#171d25;
+            color:white;
+        `;
+
+        button.innerHTML = `
+            <div style="
+                font-size:30px;
+            ">
+                ${cls.icon}
+            </div>
+
+            <b>
+                ${cls.name}
+            </b>
+
+            <div style="
+                font-size:11px;
+                margin-top:5px;
+                color:#bbb;
+            ">
+                ${cls.description}
+            </div>
+        `;
+
+        button.onclick =
+            () => {
+
+                selectedClass =
+                    cls.id;
+
+                Array.from(
+                    classContainer
+                        .children
+                ).forEach(
+                    b =>
+                        b.style.borderColor =
+                            "#343b46"
+                );
+
+                button.style.borderColor =
+                    "#e0b85c";
+
+                document.getElementById(
+                    "creationAvatar"
+                ).textContent =
+                    cls.icon;
+            };
+
+        classContainer.appendChild(
+            button
+        );
+    });
+
+    document
+        .querySelectorAll(
+            ".appearanceButton"
+        )
+        .forEach(button => {
+
+            button.style.cssText = `
+                width:55px;
+                height:55px;
+                font-size:28px;
+                border-radius:50%;
+                border:2px solid #444;
+                background:#222;
+            `;
+
+            button.onclick =
+                () => {
+
+                    selectedColor =
+                        button.dataset.color;
+
+                    document.getElementById(
+                        "creationAvatar"
+                    ).style.color =
+                        selectedColor;
+                };
+        });
+
+    document
+        .getElementById(
+            "createCharacterConfirm"
+        )
+        .onclick =
+        () => {
+
+            const name =
+                document
+                    .getElementById(
+                        "characterNameInput"
+                    )
+                    .value
+                    .trim();
+
+            if (
+                name.length <
+                3
+            ) {
+
+                alert(
+                    "El nombre debe tener al menos 3 caracteres."
+                );
+
+                return;
+            }
+
+            createNewCharacter(
+                name,
+                selectedClass,
+                selectedColor
+            );
+        };
+}
+
+/* =========================================================
+   CREAR PERSONAJE
+   ========================================================= */
+
+function createNewCharacter(
+    name,
+    classId,
+    color
+) {
+
+    const characters =
+        getCharacters();
+
+    if (
+        characters.length >= 5
+    ) {
+
+        alert(
+            "Ya tienes 5 personajes."
+        );
+
         return;
     }
 
-    /*
-       IMPORTANTE:
-       resetTransform evita que un cambio de escala
-       anterior destruya el render.
-    */
+    const cls =
+        classes[classId];
 
-    ctx.save();
+    const character = {
 
-    const dpr =
-        window.devicePixelRatio || 1;
+        id:
+            "char_" +
+            Date.now(),
 
-    ctx.setTransform(
-        dpr,
-        0,
-        0,
-        dpr,
-        0,
-        0
+        name,
+
+        classId,
+
+        color,
+
+        created:
+            Date.now(),
+
+        level: 1,
+
+        xp: 0,
+
+        gold: 150,
+
+        position: {
+            x: CITY_X,
+            y: CITY_Y
+        }
+    };
+
+    characters.push(
+        character
     );
 
-    const width =
-        canvas.width / dpr;
-
-    const height =
-        canvas.height / dpr;
-
-    /*
-       Fondo de seguridad.
-       Incluso si el terreno falla, no queda negro.
-    */
-
-    ctx.fillStyle =
-        "#315b35";
-
-    ctx.fillRect(
-        0,
-        0,
-        width,
-        height
+    saveCharacters(
+        characters
     );
 
-    drawTerrain();
-
-    drawCity();
-
-    drawResources();
-
-    drawNPCs();
-
-    drawEnemies();
-
-    drawPlayer();
-
-    drawFloatingTexts();
-
-    /*
-       Mensaje central.
-    */
-
-    if (
-        messageText &&
-        messageTimer > 0
-    ) {
-
-        ctx.font =
-            "bold 16px Arial";
-
-        ctx.textAlign =
-            "center";
-
-        const boxWidth =
-            Math.min(
-                width - 30,
-                380
-            );
-
-        const boxX =
-            width / 2 -
-            boxWidth / 2;
-
-        const boxY =
-            height - 85;
-
-        ctx.fillStyle =
-            "rgba(0,0,0,.72)";
-
-        ctx.fillRect(
-            boxX,
-            boxY,
-            boxWidth,
-            42
-        );
-
-        ctx.fillStyle =
-            "#ffffff";
-
-        ctx.fillText(
-            messageText,
-            width / 2,
-            boxY + 27
-        );
-
-        ctx.textAlign =
-            "left";
-    }
-
-    /*
-       Pantalla de muerte.
-    */
-
-    if (player.dead) {
-
-        ctx.fillStyle =
-            "rgba(0,0,0,.58)";
-
-        ctx.fillRect(
-            0,
-            0,
-            width,
-            height
-        );
-
-        ctx.fillStyle =
-            "#ffffff";
-
-        ctx.font =
-            "bold 30px Arial";
-
-        ctx.textAlign =
-            "center";
-
-        ctx.fillText(
-            "💀 HAS MUERTO",
-            width / 2,
-            height / 2
-        );
-
-        ctx.font =
-            "18px Arial";
-
-        ctx.fillText(
-            `Regresando en ${Math.ceil(
-                player.respawnTimer
-            )}`,
-            width / 2,
-            height / 2 + 35
-        );
-
-        ctx.textAlign =
-            "left";
-    }
-
-    ctx.restore();
-
-    drawMinimap();
+    loadCharacter(
+        character.id
+    );
 }
 
-/* ============================================================
-   SAVE
-   ============================================================ */
+/* =========================================================
+   SELECCIÓN DE PERSONAJES
+   ========================================================= */
 
-const SAVE_KEY =
-    "reinosDeCenizaRPG";
+function showCharacterSelection() {
 
-const SAVE_VERSION =
-    301;
+    removeCharacterScreens();
+
+    const characters =
+        getCharacters();
+
+    if (
+        characters.length === 0
+    ) {
+
+        showCharacterCreation();
+
+        return;
+    }
+
+    const overlay =
+        document.createElement(
+            "div"
+        );
+
+    overlay.id =
+        "characterSelectionScreen";
+
+    overlay.style.cssText = `
+        position:fixed;
+        inset:0;
+        z-index:100000;
+        overflow:auto;
+        background:
+            radial-gradient(
+                circle at center,
+                #28394b,
+                #090d13 70%
+            );
+        color:white;
+        font-family:Arial,sans-serif;
+        padding:25px 15px;
+    `;
+
+    overlay.innerHTML = `
+
+        <div style="
+            width:min(650px,100%);
+            margin:auto;
+            text-align:center;
+        ">
+
+            <div style="
+                font-size:38px;
+                font-weight:bold;
+                margin:20px 0;
+            ">
+                ⚔️ REINOS DE CENIZA
+            </div>
+
+            <div style="
+                color:#d6b563;
+                font-size:18px;
+                margin-bottom:20px;
+            ">
+                SELECCIONA TU PERSONAJE
+            </div>
+
+            <div
+                id="charactersList"
+                style="
+                    display:grid;
+                    gap:12px;
+                "
+            ></div>
+
+            ${
+                characters.length < 5
+                ? `
+                    <button
+                        id="newCharacterButton"
+                        style="
+                            width:100%;
+                            margin-top:15px;
+                            padding:15px;
+                            border:0;
+                            border-radius:12px;
+                            background:#80632e;
+                            color:white;
+                            font-size:17px;
+                            font-weight:bold;
+                        "
+                    >
+                        ➕ CREAR PERSONAJE
+                    </button>
+                `
+                : ""
+            }
+
+        </div>
+    `;
+
+    document.body.appendChild(
+        overlay
+    );
+
+    const list =
+        document.getElementById(
+            "charactersList"
+        );
+
+    characters.forEach(
+        character => {
+
+            const cls =
+                classes[
+                    character.classId
+                ] ||
+                classes.warrior;
+
+            const card =
+                document.createElement(
+                    "button"
+                );
+
+            card.style.cssText = `
+                width:100%;
+                padding:18px;
+                border-radius:15px;
+                border:2px solid #5c4b2c;
+                background:#151b23;
+                color:white;
+                text-align:left;
+            `;
+
+            card.innerHTML = `
+
+                <div style="
+                    display:flex;
+                    align-items:center;
+                    gap:15px;
+                ">
+
+                    <div style="
+                        font-size:55px;
+                    ">
+                        ${cls.icon}
+                    </div>
+
+                    <div>
+
+                        <div style="
+                            font-size:21px;
+                            font-weight:bold;
+                        ">
+                            ${character.name}
+                        </div>
+
+                        <div style="
+                            color:#d7b566;
+                        ">
+                            ${cls.name}
+                        </div>
+
+                        <div style="
+                            color:#aaa;
+                            margin-top:4px;
+                        ">
+                            Nivel ${character.level}
+                        </div>
+
+                    </div>
+
+                </div>
+            `;
+
+            card.onclick =
+                () =>
+                    loadCharacter(
+                        character.id
+                    );
+
+            list.appendChild(
+                card
+            );
+        }
+    );
+
+    const newButton =
+        document.getElementById(
+            "newCharacterButton"
+        );
+
+    if (newButton) {
+
+        newButton.onclick =
+            showCharacterCreation;
+    }
+}
+
+/* =========================================================
+   CARGAR PERSONAJE
+   ========================================================= */
+
+function loadCharacter(
+    characterId
+) {
+
+    const characters =
+        getCharacters();
+
+    const saved =
+        characters.find(
+            c =>
+                c.id ===
+                characterId
+        );
+
+    if (!saved) return;
+
+    currentCharacterId =
+        characterId;
+
+    player.name =
+        saved.name;
+
+    player.classId =
+        saved.classId;
+
+    player.color =
+        saved.color ||
+        "#d9b38c";
+
+    player.level =
+        saved.level ||
+        1;
+
+    player.xp =
+        saved.xp ||
+        0;
+
+    player.x =
+        saved.position?.x ||
+        CITY_X;
+
+    player.y =
+        saved.position?.y ||
+        CITY_Y;
+
+    const cls =
+        classes[
+            player.classId
+        ] ||
+        classes.warrior;
+
+    player.maxHp =
+        cls.hp;
+
+    player.hp =
+        player.maxHp;
+
+    player.maxMana =
+        cls.mana;
+
+    player.mana =
+        player.maxMana;
+
+    inventory.gold =
+        saved.gold ??
+        150;
+
+    recalculatePlayerStats();
+
+    removeCharacterScreens();
+
+    startGame();
+
+    saveGame();
+}
+
+/* =========================================================
+   BORRAR PANTALLAS
+   ========================================================= */
+
+function removeCharacterScreens() {
+
+    [
+        "characterCreationScreen",
+        "characterSelectionScreen"
+    ].forEach(id => {
+
+        const el =
+            document.getElementById(
+                id
+            );
+
+        if (el) {
+            el.remove();
+        }
+    });
+}
+
+/* =========================================================
+   GUARDAR PARTIDA
+   ========================================================= */
 
 function saveGame() {
 
@@ -5369,8 +5342,7 @@ function saveGame() {
 
         const save = {
 
-            version:
-                SAVE_VERSION,
+            version: 1000,
 
             player: {
                 ...player
@@ -5382,54 +5354,102 @@ function saveGame() {
 
             inventorySlots,
 
-            itemInventory:
-                JSON.parse(
-                    JSON.stringify(
-                        itemInventory
-                    )
-                ),
+            itemInventory: [
+                ...itemInventory
+            ],
 
-            equipment:
-                JSON.parse(
-                    JSON.stringify(
-                        equipment
-                    )
-                ),
+            equipment: {
+                ...equipment
+            },
 
-            quests:
-                JSON.parse(
-                    JSON.stringify(
-                        quests
-                    )
-                ),
+            quests: {
+                ...quests
+            },
 
-            tools:
-                JSON.parse(
-                    JSON.stringify(
-                        tools
-                    )
-                )
+            tools: {
+                ...tools
+            }
         };
 
         localStorage.setItem(
             SAVE_KEY,
-            JSON.stringify(save)
+            JSON.stringify(
+                save
+            )
         );
+
+        /*
+           Actualizar personaje
+        */
+
+        if (
+            currentCharacterId
+        ) {
+
+            const characters =
+                getCharacters();
+
+            const index =
+                characters.findIndex(
+                    c =>
+                        c.id ===
+                        currentCharacterId
+                );
+
+            if (
+                index !== -1
+            ) {
+
+                characters[index]
+                    .name =
+                    player.name;
+
+                characters[index]
+                    .classId =
+                    player.classId;
+
+                characters[index]
+                    .color =
+                    player.color;
+
+                characters[index]
+                    .level =
+                    player.level;
+
+                characters[index]
+                    .xp =
+                    player.xp;
+
+                characters[index]
+                    .gold =
+                    inventory.gold;
+
+                characters[index]
+                    .position = {
+                        x: player.x,
+                        y: player.y
+                    };
+
+                saveCharacters(
+                    characters
+                );
+            }
+        }
 
     } catch (error) {
 
         console.error(
-            "❌ Error guardando partida:",
+            "Error guardando:",
             error
         );
     }
 }
 
-/* ============================================================
-   LOAD
-   ============================================================ */
+/* =========================================================
+   CARGAR SAVE
+   ========================================================= */
 
-function loadGame() {
+function loadSave() {
 
     try {
 
@@ -5440,21 +5460,15 @@ function loadGame() {
 
         if (!raw) {
 
-            initializeStarterInventory();
-
-            recalculatePlayerStats();
-
-            return;
+            return false;
         }
 
         const save =
             JSON.parse(raw);
 
-        /*
-           Jugador.
-        */
-
-        if (save.player) {
+        if (
+            save.player
+        ) {
 
             Object.assign(
                 player,
@@ -5462,11 +5476,9 @@ function loadGame() {
             );
         }
 
-        /*
-           Inventario antiguo.
-        */
-
-        if (save.inventory) {
+        if (
+            save.inventory
+        ) {
 
             Object.assign(
                 inventory,
@@ -5474,30 +5486,16 @@ function loadGame() {
             );
         }
 
-        /*
-           Slots.
-        */
-
         if (
-            Number.isFinite(
-                Number(
-                    save.inventorySlots
-                )
-            )
+            save.inventorySlots
         ) {
 
             inventorySlots =
                 Math.max(
                     30,
-                    Number(
-                        save.inventorySlots
-                    )
+                    save.inventorySlots
                 );
         }
-
-        /*
-           Inventario de objetos.
-        */
 
         if (
             Array.isArray(
@@ -5506,194 +5504,32 @@ function loadGame() {
         ) {
 
             itemInventory =
-                save.itemInventory
-                    .filter(Boolean)
-                    .map(item => {
-
-                        if (!item.uid) {
-                            item.uid =
-                                createUID();
-                        }
-
-                        if (
-                            !item.itemId &&
-                            item.id
-                        ) {
-                            item.itemId =
-                                item.id;
-                        }
-
-                        const def =
-                            itemDefinitions[
-                                item.itemId
-                            ];
-
-                        if (def) {
-
-                            item.name =
-                                item.name ||
-                                def.name;
-
-                            item.type =
-                                item.type ||
-                                def.type;
-
-                            item.level =
-                                safeNumber(
-                                    item.level,
-                                    def.level
-                                );
-
-                            item.rarity =
-                                item.rarity ||
-                                def.rarity;
-
-                            item.damage =
-                                safeNumber(
-                                    item.damage,
-                                    def.damage
-                                );
-
-                            item.defense =
-                                safeNumber(
-                                    item.defense,
-                                    def.defense
-                                );
-
-                            item.icon =
-                                item.icon ||
-                                def.icon;
-
-                            item.description =
-                                item.description ||
-                                def.description;
-                        }
-
-                        return item;
-                    });
-
+                save.itemInventory;
         }
-
-        /*
-           Compatibilidad con partidas viejas
-           que todavía no tenían inventario de objetos.
-        */
 
         if (
-            itemInventory.length === 0
+            save.equipment
         ) {
 
-            initializeStarterInventory();
+            Object.assign(
+                equipment,
+                save.equipment
+            );
         }
-
-        /*
-           Equipment.
-        */
-
-        if (save.equipment) {
-
-            for (
-                const slot in equipment
-            ) {
-
-                if (
-                    Object.prototype.hasOwnProperty.call(
-                        save.equipment,
-                        slot
-                    )
-                ) {
-
-                    equipment[slot] =
-                        save.equipment[slot];
-                }
-            }
-        }
-
-        /*
-           Reparar equipment antiguo.
-        */
-
-        for (
-            const slot in equipment
-        ) {
-
-            const equipped =
-                equipment[slot];
-
-            if (!equipped) continue;
-
-            if (
-                typeof equipped ===
-                "string"
-            ) {
-
-                equipment[slot] = {
-                    itemId: equipped,
-                    uid:
-                        "equipped_" +
-                        slot,
-                    rarity:
-                        itemDefinitions[
-                            equipped
-                        ]?.rarity ||
-                        "common"
-                };
-            }
-
-            if (!equipped.uid) {
-
-                equipped.uid =
-                    "equipped_" +
-                    slot;
-            }
-
-            if (!equipped.rarity) {
-
-                equipped.rarity =
-                    itemDefinitions[
-                        equipped.itemId
-                    ]?.rarity ||
-                    "common";
-            }
-        }
-
-        /*
-           Misiones.
-        */
 
         if (
-            Array.isArray(
+            save.quests
+        ) {
+
+            Object.assign(
+                quests,
                 save.quests
-            )
-        ) {
-
-            for (
-                const savedQuest
-                of save.quests
-            ) {
-
-                const currentQuest =
-                    quests.find(
-                        q =>
-                            q.id ===
-                            savedQuest.id
-                    );
-
-                if (currentQuest) {
-
-                    Object.assign(
-                        currentQuest,
-                        savedQuest
-                    );
-                }
-            }
+            );
         }
 
-        /*
-           Herramientas.
-        */
-
-        if (save.tools) {
+        if (
+            save.tools
+        ) {
 
             Object.assign(
                 tools,
@@ -5703,83 +5539,290 @@ function loadGame() {
 
         recalculatePlayerStats();
 
-        inventoryDirty = true;
+        return true;
 
     } catch (error) {
 
-        console.error(
-            "❌ Error cargando partida:",
+        console.warn(
+            "Guardado antiguo incompatible:",
             error
         );
 
-        /*
-           No dejamos que una partida corrupta
-           destruya el render del juego.
-        */
-
-        initializeStarterInventory();
-
-        recalculatePlayerStats();
+        return false;
     }
 }
 
-/* ============================================================
-   AUTOSAVE
-   ============================================================ */
+/* =========================================================
+   INICIALIZAR INVENTARIO DE PERSONAJE
+   ========================================================= */
 
-let autoSaveTimer = 0;
+function createStartingInventory() {
 
-function updateAutoSave(dt) {
+    itemInventory = [];
 
-    autoSaveTimer += dt;
+    inventorySlots = 30;
+
+    Object.keys(
+        inventory
+    ).forEach(key => {
+
+        if (
+            key === "gold"
+        ) return;
+
+        inventory[key] = 0;
+    });
+
+    inventory.gold = 150;
+    inventory.potions = 3;
+
+    equipment = {
+
+        weapon:
+            cloneItem(
+                classes[
+                    player.classId
+                ]?.weapon ||
+                "ironSword"
+            ),
+
+        helmet:
+            cloneItem(
+                "ironHelmet"
+            ),
+
+        armor:
+            cloneItem(
+                "ironArmor"
+            ),
+
+        boots:
+            cloneItem(
+                "leatherBoots"
+            ),
+
+        shield:
+            cloneItem(
+                "woodenShield"
+            )
+    };
+
+    /*
+       Material inicial
+    */
+
+    inventory.wood = 0;
+    inventory.stone = 0;
+    inventory.copper = 0;
+    inventory.iron = 0;
+
+    inventory.meat = 0;
+    inventory.leather = 0;
+    inventory.wolfFang = 0;
+    inventory.goblinEar = 0;
+    inventory.bait = 0;
+    inventory.fish = 0;
+
+    quests = {
+
+        firstSteps: {
+            progress: 0,
+            completed: false
+        },
+
+        wolves: {
+            progress: 0,
+            completed: false
+        },
+
+        resources: {
+            progress: 0,
+            completed: false
+        }
+    };
+
+    recalculatePlayerStats();
+}
+
+/* =========================================================
+   INICIAR GAME
+   ========================================================= */
+
+let gameStarted = false;
+
+function startGame() {
+
+    gameStarted = true;
+
+    /*
+       Si no existe inventario válido,
+       crear el inicial.
+    */
 
     if (
-        autoSaveTimer >= 10
+        !equipment.weapon
     ) {
 
-        autoSaveTimer = 0;
-
-        saveGame();
+        createStartingInventory();
     }
-}
 
-/* ============================================================
-   ACTUALIZACIÓN SEGURA
-   ============================================================ */
+    createResources();
 
-function update(dt) {
+    if (
+        enemies.length === 0
+    ) {
 
-    updateMovement(dt);
+        for (
+            let i = 0;
+            i < 30;
+            i++
+        ) {
 
-    updatePlayer(dt);
+            const types = [
+                "wolf",
+                "boar",
+                "goblin",
+                "orc"
+            ];
 
-    updateEnemies(dt);
+            spawnEnemy(
+                types[
+                    Math.floor(
+                        Math.random() *
+                        types.length
+                    )
+                ]
+            );
+        }
+    }
 
-    updateResources(dt);
+    createMobileButtons();
 
-    updateDeath(dt);
-
-    updateFloatingTexts(dt);
-
-    updateMessage(dt);
-
-    updateAutoSave(dt);
-
-    maintainEnemies();
-
-    updateCamera();
+    createSkillBar();
 
     updateUI();
+
+    showMessage(
+        "⚔️ Bienvenido a Reinos de Ceniza, " +
+        player.name
+    );
 }
 
-/* ============================================================
-   LOOP SEGURO
-   ============================================================ */
+/* =========================================================
+   NUEVO JUGADOR
+   ========================================================= */
+
+function firstLaunch() {
+
+    const characters =
+        getCharacters();
+
+    if (
+        characters.length === 0
+    ) {
+
+        showCharacterCreation();
+
+        return;
+    }
+
+    /*
+       Intentamos cargar la última partida
+    */
+
+    const loaded =
+        loadSave();
+
+    if (
+        loaded &&
+        player.name
+    ) {
+
+        startGame();
+
+        return;
+    }
+
+    showCharacterSelection();
+}
+
+/* =========================================================
+   BOTÓN PARA CAMBIAR PERSONAJE
+   ========================================================= */
+
+function createCharacterMenuButton() {
+
+    if (
+        document.getElementById(
+            "characterButton"
+        )
+    ) {
+        return;
+    }
+
+    const button =
+        document.createElement(
+            "button"
+        );
+
+    button.id =
+        "characterButton";
+
+    button.textContent =
+        "👤";
+
+    button.title =
+        "Cambiar personaje";
+
+    button.style.cssText = `
+        position:fixed;
+        top:15px;
+        left:15px;
+        width:48px;
+        height:48px;
+        border-radius:50%;
+        border:2px solid #9c7b3b;
+        background:rgba(15,18,24,.9);
+        color:white;
+        font-size:22px;
+        z-index:4000;
+    `;
+
+    button.onclick =
+        () => {
+
+            saveGame();
+
+            showCharacterSelection();
+        };
+
+    document.body.appendChild(
+        button
+    );
+}
+
+/* =========================================================
+   AUTO GUARDADO
+   ========================================================= */
+
+setInterval(
+    () => {
+
+        if (gameStarted) {
+
+            saveGame();
+        }
+
+    },
+    5000
+);
+
+/* =========================================================
+   LOOP PRINCIPAL
+   ========================================================= */
 
 let lastTime =
     performance.now();
-
-let engineErrorShown = false;
 
 function gameLoop(now) {
 
@@ -5788,101 +5831,48 @@ function gameLoop(now) {
         const dt =
             Math.min(
                 0.05,
-                Math.max(
-                    0,
-                    (now - lastTime) /
-                    1000
-                )
+                (
+                    now -
+                    lastTime
+                ) / 1000
             );
 
         lastTime = now;
 
-        update(dt);
+        if (gameStarted) {
 
-        draw();
+            update(dt);
+            draw();
+        } else {
+
+            /*
+               Incluso antes de entrar
+               dejamos un fondo visible.
+            */
+
+            ctx.fillStyle =
+                "#101820";
+
+            ctx.fillRect(
+                0,
+                0,
+                canvas.width,
+                canvas.height
+            );
+        }
 
     } catch (error) {
 
         /*
-           ESTE BLOQUE ES UNA DE LAS CORRECCIONES
-           PRINCIPALES DE LA V301.
-
-           Si algo falla en una función secundaria,
-           no dejamos el canvas completamente negro.
+           Protección del loop.
+           Un error aislado no mata
+           completamente el render.
         */
 
         console.error(
-            "❌ Error del motor:",
+            "Error Game Loop:",
             error
         );
-
-        if (!engineErrorShown) {
-
-            engineErrorShown = true;
-
-            try {
-
-                if (ctx && canvas) {
-
-                    const dpr =
-                        window.devicePixelRatio ||
-                        1;
-
-                    const width =
-                        canvas.width / dpr;
-
-                    const height =
-                        canvas.height / dpr;
-
-                    ctx.setTransform(
-                        dpr,
-                        0,
-                        0,
-                        dpr,
-                        0,
-                        0
-                    );
-
-                    ctx.fillStyle =
-                        "#315b35";
-
-                    ctx.fillRect(
-                        0,
-                        0,
-                        width,
-                        height
-                    );
-
-                    ctx.fillStyle =
-                        "#ffffff";
-
-                    ctx.font =
-                        "bold 18px Arial";
-
-                    ctx.textAlign =
-                        "center";
-
-                    ctx.fillText(
-                        "⚔️ Reinos de Ceniza",
-                        width / 2,
-                        height / 2
-                    );
-
-                    ctx.font =
-                        "14px Arial";
-
-                    ctx.fillText(
-                        "El motor continúa ejecutándose...",
-                        width / 2,
-                        height / 2 + 30
-                    );
-
-                    ctx.textAlign =
-                        "left";
-                }
-
-            } catch (_) {}
-        }
     }
 
     requestAnimationFrame(
@@ -5890,171 +5880,41 @@ function gameLoop(now) {
     );
 }
 
-/* ============================================================
-   CLICK / TOUCH SOBRE CANVAS
-   ============================================================ */
+/* =========================================================
+   INICIALIZACIÓN
+   ========================================================= */
 
-function setupCanvasInteraction() {
+window.addEventListener(
+    "load",
+    () => {
 
-    if (!canvas) return;
+        try {
 
-    canvas.addEventListener(
-        "pointerdown",
-        event => {
+            createCharacterMenuButton();
+
+            firstLaunch();
+
+        } catch (error) {
+
+            console.error(
+                "Error inicializando juego:",
+                error
+            );
 
             /*
-               En ordenador:
-               click cerca de recurso = recoger.
+               Si existe un save corrupto,
+               permitimos entrar al creador.
             */
 
-            if (
-                event.pointerType ===
-                "mouse"
-            ) {
-
-                interact();
-            }
+            showCharacterCreation();
         }
-    );
-}
-
-/* ============================================================
-   INICIALIZACIÓN
-   ============================================================ */
-
-function initializeGame() {
-
-    if (!canvas || !ctx) {
-
-        console.error(
-            "❌ No se puede iniciar: canvas/contexto no disponible."
-        );
-
-        return;
     }
+);
 
-    resizeCanvas();
+requestAnimationFrame(
+    gameLoop
+);
 
-    loadGame();
-
-    initializeResources();
-
-    maintainEnemies();
-
-    recalculatePlayerStats();
-
-    setupJoystick();
-
-    setupAttackButton();
-
-    setupSkillButtons();
-
-    setupInventoryButton();
-
-    setupPotionButton();
-
-    setupCanvasInteraction();
-
-    updateCamera();
-
-    updateUI();
-
-    /*
-       Guardado inicial.
-    */
-
-    saveGame();
-
-    /*
-       Primer dibujo inmediato.
-       Esto evita que el canvas permanezca negro
-       mientras espera al primer frame.
-    */
-
-    draw();
-
-    /*
-       Iniciar motor.
-    */
-
-    requestAnimationFrame(
-        gameLoop
-    );
-
-    console.log(
-        "⚔️ Reinos de Ceniza v301 iniciado correctamente."
-    );
-}
-
-/* ============================================================
-   INICIAR CUANDO EL DOM ESTÉ LISTO
-   ============================================================ */
-
-if (
-    document.readyState ===
-    "loading"
-) {
-
-    document.addEventListener(
-        "DOMContentLoaded",
-        initializeGame,
-        {
-            once: true
-        }
-    );
-
-} else {
-
-    initializeGame();
-}
-
-/* ============================================================
-   EXPONER FUNCIONES
-   Para botones HTML existentes.
-   ============================================================ */
-
-window.attack =
-    attack;
-
-window.usePotion =
-    usePotion;
-
-window.useSkill =
-    useSkill;
-
-window.openItemDetails =
-    openItemDetails;
-
-window.closeItemDetails =
-    closeItemDetails;
-
-window.equipItem =
-    equipItem;
-
-window.unequipItem =
-    unequipItem;
-
-window.expandInventory =
-    expandInventory;
-
-window.claimQuest =
-    claimQuest;
-
-window.openBlacksmith =
-    openBlacksmith;
-
-window.saveGame =
-    saveGame;
-
-window.loadGame =
-    loadGame;
-
-window.gatherResource =
-    gatherResource;
-
-window.interact =
-    interact;
-
-/* ============================================================
-   FIN GAME.JS V301
-   ============================================================ */
+/* =========================================================
+   FIN
+   ========================================================= */
