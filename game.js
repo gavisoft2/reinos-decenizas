@@ -1,16 +1,20 @@
 "use strict";
 
 /* =========================================================
-   REINOS DE CENIZA
+   ⚔️ REINOS DE CENIZA
    RPG 2D MOBILE
-   VERSION 200
+   VERSION 300
+   ========================================================= */
+
+/* =========================================================
+   CANVAS
 ========================================================= */
 
 const canvas = document.getElementById("world");
 const ctx = canvas.getContext("2d");
 
 const miniCanvas = document.getElementById("miniCanvas");
-const miniCtx = miniCanvas.getContext("2d");
+const miniCtx = miniCanvas ? miniCanvas.getContext("2d") : null;
 
 let W = innerWidth;
 let H = innerHeight;
@@ -25,8 +29,7 @@ function resize(){
 
 }
 
-addEventListener("resize",resize);
-
+addEventListener("resize", resize);
 resize();
 
 /* =========================================================
@@ -56,9 +59,7 @@ const player = {
     speed: 260,
 
     level: 1,
-
     xp: 0,
-
     xpNeeded: 100,
 
     hp: 100,
@@ -68,24 +69,19 @@ const player = {
     maxMana: 50,
 
     damage: 25,
-
     defense: 5,
 
     attackRange: 105,
-
     attackCooldown: 0,
-
     attackDelay: .55,
 
     directionX: 0,
     directionY: 1,
 
     dead: false,
-
     respawnTimer: 0,
 
     attackAnimation: 0,
-
     skillAnimation: 0
 
 };
@@ -99,24 +95,51 @@ const inventory = {
     gold: 150,
 
     wood: 0,
-
     stone: 0,
-
     copper: 0,
-
     iron: 0,
 
     fish: 0,
+    bait: 0,
 
     potions: 3,
 
     meat: 0,
 
     wolfFang: 0,
-
     goblinEar: 0,
+    leather: 0,
 
-    leather: 0
+    boarTusk: 0,
+    orcTooth: 0,
+
+    magicAsh: 0,
+
+    herbs: 0
+
+};
+
+/* =========================================================
+   ESTADÍSTICAS DE JUEGO
+========================================================= */
+
+const gameStats = {
+
+    kills: 0,
+    wolvesKilled: 0,
+    boarsKilled: 0,
+    goblinsKilled: 0,
+    orcsKilled: 0,
+    elitesKilled: 0,
+
+    treesCollected: 0,
+    rocksCollected: 0,
+    copperCollected: 0,
+    ironCollected: 0,
+
+    fishCaught: 0,
+
+    totalGoldEarned: 0
 
 };
 
@@ -164,7 +187,8 @@ const equipment = {
         icon:"🗡️",
         rarity:"common",
         damage:10,
-        defense:0
+        defense:0,
+        upgrade:0
     },
 
     helmet:{
@@ -173,7 +197,8 @@ const equipment = {
         icon:"🪖",
         rarity:"common",
         damage:0,
-        defense:3
+        defense:3,
+        upgrade:0
     },
 
     armor:{
@@ -182,7 +207,8 @@ const equipment = {
         icon:"🥋",
         rarity:"common",
         damage:0,
-        defense:7
+        defense:7,
+        upgrade:0
     },
 
     boots:{
@@ -191,7 +217,8 @@ const equipment = {
         icon:"👢",
         rarity:"common",
         damage:0,
-        defense:2
+        defense:2,
+        upgrade:0
     },
 
     shield:{
@@ -200,7 +227,8 @@ const equipment = {
         icon:"🛡️",
         rarity:"common",
         damage:0,
-        defense:5
+        defense:5,
+        upgrade:0
     }
 
 };
@@ -332,9 +360,9 @@ function terrainAt(x,y){
     const ny = y / WORLD_HEIGHT;
 
     const wave =
-        Math.sin(nx*17) +
-        Math.cos(ny*13) +
-        Math.sin((nx+ny)*22);
+        Math.sin(nx * 17) +
+        Math.cos(ny * 13) +
+        Math.sin((nx + ny) * 22);
 
     if(
         x > WORLD_WIDTH/2-420 &&
@@ -376,12 +404,12 @@ function terrainAt(x,y){
 }
 
 /* =========================================================
-   ALEATORIO
+   UTILIDADES
 ========================================================= */
 
 function rand(min,max){
 
-    return Math.random()*(max-min)+min;
+    return Math.random() * (max-min) + min;
 
 }
 
@@ -394,6 +422,88 @@ function distance(a,b){
 
 }
 
+function clamp(value,min,max){
+
+    return Math.max(
+        min,
+        Math.min(max,value)
+    );
+
+}
+
+/* =========================================================
+   ZONAS
+========================================================= */
+
+const zones = [
+
+    {
+        id:"city",
+        name:"Ciudad de Ceniza",
+        x:WORLD_WIDTH/2,
+        y:WORLD_HEIGHT/2,
+        radius:420
+    },
+
+    {
+        id:"forest",
+        name:"Bosque Sombrío",
+        x:1300,
+        y:1200,
+        radius:750
+    },
+
+    {
+        id:"mines",
+        name:"Minas Antiguas",
+        x:3900,
+        y:1200,
+        radius:700
+    },
+
+    {
+        id:"marsh",
+        name:"Pantano de Ceniza",
+        x:1200,
+        y:3900,
+        radius:700
+    },
+
+    {
+        id:"mountain",
+        name:"Montañas Negras",
+        x:3900,
+        y:3900,
+        radius:800
+    }
+
+];
+
+function getCurrentZone(){
+
+    let closest = zones[0];
+    let best = Infinity;
+
+    for(const zone of zones){
+
+        const d = Math.hypot(
+            player.x-zone.x,
+            player.y-zone.y
+        );
+
+        if(d<best){
+
+            best=d;
+            closest=zone;
+
+        }
+
+    }
+
+    return closest;
+
+}
+
 /* =========================================================
    RECURSOS
 ========================================================= */
@@ -402,32 +512,42 @@ const resources = [];
 
 function createResources(){
 
-    resources.length = 0;
+    resources.length=0;
 
-    for(let i=0;i<320;i++){
+    for(let i=0;i<340;i++){
 
-        const x = rand(100,WORLD_WIDTH-100);
-        const y = rand(100,WORLD_HEIGHT-100);
+        const x=rand(
+            100,
+            WORLD_WIDTH-100
+        );
 
-        const t = terrainAt(x,y);
+        const y=rand(
+            100,
+            WORLD_HEIGHT-100
+        );
 
-        let type = null;
+        const t=terrainAt(x,y);
 
-        if(t === TERRAIN.FOREST){
+        let type=null;
 
-            type = "tree";
+        if(t===TERRAIN.FOREST){
+
+            type="tree";
 
         }
-        else if(t === TERRAIN.ROCK){
+        else if(t===TERRAIN.ROCK){
 
-            type = Math.random()<.5 ? "iron":"rock";
+            type=
+                Math.random()<.5
+                ?"iron"
+                :"rock";
 
         }
-        else if(t === TERRAIN.GRASS){
+        else if(t===TERRAIN.GRASS){
 
-            if(Math.random()<.15){
+            if(Math.random()<.16){
 
-                type = "copper";
+                type="copper";
 
             }
 
@@ -439,10 +559,14 @@ function createResources(){
 
                 x,
                 y,
+
                 type,
+
                 hp:type==="tree"?3:2,
                 maxHp:type==="tree"?3:2,
+
                 alive:true,
+
                 respawn:0
 
             });
@@ -499,55 +623,97 @@ const enemyTypes = {
         radius:30,
         xp:110,
         gold:30
+    },
+
+    skeleton:{
+        name:"Esqueleto",
+        hp:180,
+        damage:24,
+        speed:70,
+        radius:26,
+        xp:90,
+        gold:22
+    },
+
+    spider:{
+        name:"Araña",
+        hp:115,
+        damage:18,
+        speed:100,
+        radius:22,
+        xp:55,
+        gold:12
+    },
+
+    eliteOrc:{
+        name:"Orco Élite",
+        hp:600,
+        damage:42,
+        speed:48,
+        radius:40,
+        xp:300,
+        gold:100,
+        elite:true
     }
 
 };
 
-const enemies = [];
+const enemies=[];
+
+function chooseEnemyType(){
+
+    const r=Math.random();
+
+    if(r<.25)return "wolf";
+
+    if(r<.43)return "boar";
+
+    if(r<.62)return "goblin";
+
+    if(r<.77)return "spider";
+
+    if(r<.91)return "skeleton";
+
+    if(r<.98)return "orc";
+
+    return "eliteOrc";
+
+}
 
 function spawnEnemy(){
 
     let x;
     let y;
 
+    let attempts=0;
+
     do{
 
-        x = rand(300,WORLD_WIDTH-300);
-        y = rand(300,WORLD_HEIGHT-300);
+        x=rand(
+            300,
+            WORLD_WIDTH-300
+        );
 
-    }while(
+        y=rand(
+            300,
+            WORLD_HEIGHT-300
+        );
+
+        attempts++;
+
+        if(attempts>50)break;
+
+    }
+    while(
         Math.hypot(
             x-player.x,
             y-player.y
-        ) < 600
+        )<650
     );
 
-    const r = Math.random();
+    const type=chooseEnemyType();
 
-    let type;
-
-    if(r<.45){
-
-        type="wolf";
-
-    }
-    else if(r<.72){
-
-        type="boar";
-
-    }
-    else if(r<.93){
-
-        type="goblin";
-
-    }
-    else{
-
-        type="orc";
-
-    }
-
-    const base = enemyTypes[type];
+    const base=enemyTypes[type];
 
     enemies.push({
 
@@ -568,6 +734,8 @@ function spawnEnemy(){
         xp:base.xp,
         gold:base.gold,
 
+        elite:!!base.elite,
+
         attackCooldown:0,
 
         hitFlash:0
@@ -578,7 +746,7 @@ function spawnEnemy(){
 
 function maintainEnemies(){
 
-    while(enemies.length<30){
+    while(enemies.length<32){
 
         spawnEnemy();
 
@@ -590,7 +758,7 @@ function maintainEnemies(){
    NPC
 ========================================================= */
 
-const npcs = [
+const npcs=[
 
     {
         id:"guardian",
@@ -634,7 +802,7 @@ const npcs = [
    MISIONES
 ========================================================= */
 
-const quests = [
+const quests=[
 
     {
         id:"first",
@@ -676,6 +844,34 @@ const quests = [
         rewardXP:120,
         accepted:false,
         completed:false
+    },
+
+    {
+        id:"goblins",
+        title:"Problemas en el bosque",
+        description:"Derrota 5 goblins.",
+        type:"kill",
+        target:"goblin",
+        progress:0,
+        needed:5,
+        rewardGold:180,
+        rewardXP:180,
+        accepted:false,
+        completed:false
+    },
+
+    {
+        id:"miner",
+        title:"Minería para Aldric",
+        description:"Recolecta 10 unidades de hierro.",
+        type:"iron",
+        target:"iron",
+        progress:0,
+        needed:10,
+        rewardGold:220,
+        rewardXP:200,
+        accepted:false,
+        completed:false
     }
 
 ];
@@ -684,7 +880,7 @@ const quests = [
    CÁMARA
 ========================================================= */
 
-const camera = {
+const camera={
 
     x:0,
     y:0
@@ -693,23 +889,22 @@ const camera = {
 
 function updateCamera(){
 
-    camera.x = player.x - W/2;
-    camera.y = player.y - H/2;
+    camera.x=
+        player.x-W/2;
 
-    camera.x = Math.max(
+    camera.y=
+        player.y-H/2;
+
+    camera.x=clamp(
+        camera.x,
         0,
-        Math.min(
-            WORLD_WIDTH-W,
-            camera.x
-        )
+        Math.max(0,WORLD_WIDTH-W)
     );
 
-    camera.y = Math.max(
+    camera.y=clamp(
+        camera.y,
         0,
-        Math.min(
-            WORLD_HEIGHT-H,
-            camera.y
-        )
+        Math.max(0,WORLD_HEIGHT-H)
     );
 
 }
@@ -718,8 +913,11 @@ function updateCamera(){
    JOYSTICK
 ========================================================= */
 
-const joystick = document.getElementById("joystick");
-const joystickKnob = document.getElementById("joystickKnob");
+const joystick=
+    document.getElementById("joystick");
+
+const joystickKnob=
+    document.getElementById("joystickKnob");
 
 let joyX=0;
 let joyY=0;
@@ -727,71 +925,109 @@ let joyPointer=null;
 
 function updateJoystick(clientX,clientY){
 
-    const rect = joystick.getBoundingClientRect();
+    if(!joystick)return;
 
-    const cx = rect.left+rect.width/2;
-    const cy = rect.top+rect.height/2;
+    const rect=
+        joystick.getBoundingClientRect();
 
-    let dx = clientX-cx;
-    let dy = clientY-cy;
+    const cx=
+        rect.left+rect.width/2;
 
-    const max = rect.width/2-32;
+    const cy=
+        rect.top+rect.height/2;
 
-    const len = Math.hypot(dx,dy);
+    let dx=
+        clientX-cx;
+
+    let dy=
+        clientY-cy;
+
+    const max=
+        rect.width/2-32;
+
+    const len=
+        Math.hypot(dx,dy);
 
     if(len>max){
 
-        dx = dx/len*max;
-        dy = dy/len*max;
+        dx=dx/len*max;
+        dy=dy/len*max;
 
     }
 
-    joyX = dx/max;
-    joyY = dy/max;
+    joyX=dx/max;
+    joyY=dy/max;
 
-    joystickKnob.style.transform =
-        `translate(${dx}px,${dy}px)`;
+    if(joystickKnob){
+
+        joystickKnob.style.transform=
+            `translate(${dx}px,${dy}px)`;
+
+    }
 
 }
-
-joystick.addEventListener("pointerdown",e=>{
-
-    joyPointer=e.pointerId;
-
-    joystick.setPointerCapture(e.pointerId);
-
-    updateJoystick(
-        e.clientX,
-        e.clientY
-    );
-
-});
-
-joystick.addEventListener("pointermove",e=>{
-
-    if(e.pointerId!==joyPointer)return;
-
-    updateJoystick(
-        e.clientX,
-        e.clientY
-    );
-
-});
 
 function resetJoystick(){
 
     joyX=0;
     joyY=0;
 
-    joystickKnob.style.transform=
-        "translate(0,0)";
+    if(joystickKnob){
+
+        joystickKnob.style.transform=
+            "translate(0,0)";
+
+    }
 
     joyPointer=null;
 
 }
 
-joystick.addEventListener("pointerup",resetJoystick);
-joystick.addEventListener("pointercancel",resetJoystick);
+if(joystick){
+
+    joystick.addEventListener(
+        "pointerdown",
+        e=>{
+
+            joyPointer=e.pointerId;
+
+            joystick.setPointerCapture(
+                e.pointerId
+            );
+
+            updateJoystick(
+                e.clientX,
+                e.clientY
+            );
+
+        }
+    );
+
+    joystick.addEventListener(
+        "pointermove",
+        e=>{
+
+            if(e.pointerId!==joyPointer)return;
+
+            updateJoystick(
+                e.clientX,
+                e.clientY
+            );
+
+        }
+    );
+
+    joystick.addEventListener(
+        "pointerup",
+        resetJoystick
+    );
+
+    joystick.addEventListener(
+        "pointercancel",
+        resetJoystick
+    );
+
+}
 
 /* =========================================================
    TECLADO
@@ -799,17 +1035,33 @@ joystick.addEventListener("pointercancel",resetJoystick);
 
 const keys={};
 
-addEventListener("keydown",e=>{
+addEventListener(
+    "keydown",
+    e=>{
 
-    keys[e.key.toLowerCase()]=true;
+        keys[e.key.toLowerCase()]=true;
 
-});
+        /* P = usar poción */
 
-addEventListener("keyup",e=>{
+        if(
+            e.key.toLowerCase()==="p"
+        ){
 
-    keys[e.key.toLowerCase()]=false;
+            usePotion();
 
-});
+        }
+
+    }
+);
+
+addEventListener(
+    "keyup",
+    e=>{
+
+        keys[e.key.toLowerCase()]=false;
+
+    }
+);
 
 /* =========================================================
    MOVIMIENTO
@@ -822,10 +1074,17 @@ function updateMovement(dt){
     let dx=joyX;
     let dy=joyY;
 
-    if(keys.w || keys.arrowup)dy-=1;
-    if(keys.s || keys.arrowdown)dy+=1;
-    if(keys.a || keys.arrowleft)dx-=1;
-    if(keys.d || keys.arrowright)dx+=1;
+    if(keys.w || keys.arrowup)
+        dy-=1;
+
+    if(keys.s || keys.arrowdown)
+        dy+=1;
+
+    if(keys.a || keys.arrowleft)
+        dx-=1;
+
+    if(keys.d || keys.arrowright)
+        dx+=1;
 
     const len=Math.hypot(dx,dy);
 
@@ -836,30 +1095,36 @@ function updateMovement(dt){
 
     }
 
-    if(Math.abs(dx)+Math.abs(dy)>.05){
+    if(
+        Math.abs(dx)+
+        Math.abs(dy)>.05
+    ){
 
         player.directionX=dx;
         player.directionY=dy;
 
-        player.x+=dx*player.speed*dt;
-        player.y+=dy*player.speed*dt;
+        player.x+=
+            dx*
+            player.speed*
+            dt;
+
+        player.y+=
+            dy*
+            player.speed*
+            dt;
 
     }
 
-    player.x=Math.max(
+    player.x=clamp(
+        player.x,
         player.radius,
-        Math.min(
-            WORLD_WIDTH-player.radius,
-            player.x
-        )
+        WORLD_WIDTH-player.radius
     );
 
-    player.y=Math.max(
+    player.y=clamp(
+        player.y,
         player.radius,
-        Math.min(
-            WORLD_HEIGHT-player.radius,
-            player.y
-        )
+        WORLD_HEIGHT-player.radius
     );
 
 }
@@ -870,19 +1135,66 @@ function updateMovement(dt){
 
 let lastTap=0;
 
-canvas.addEventListener("pointerdown",e=>{
+canvas.addEventListener(
+    "pointerdown",
+    e=>{
 
-    const now=Date.now();
+        const now=Date.now();
 
-    if(now-lastTap<350){
+        if(
+            now-lastTap<350
+        ){
 
-        gatherResource();
+            interactWorld();
+
+        }
+
+        lastTap=now;
+
+    }
+);
+
+function interactWorld(){
+
+    if(player.dead)return;
+
+    const npc=findNearestNPC(105);
+
+    if(npc){
+
+        openNPC(npc);
+        return;
 
     }
 
-    lastTap=now;
+    gatherResource();
 
-});
+}
+
+function findNearestNPC(range){
+
+    let nearest=null;
+    let best=range;
+
+    for(const npc of npcs){
+
+        const d=distance(
+            player,
+            npc
+        );
+
+        if(d<best){
+
+            best=d;
+            nearest=npc;
+
+        }
+
+    }
+
+    return nearest;
+
+}
 
 function gatherResource(){
 
@@ -895,10 +1207,11 @@ function gatherResource(){
 
         if(!r.alive)continue;
 
-        const d=Math.hypot(
-            player.x-r.x,
-            player.y-r.y
-        );
+        const d=
+            Math.hypot(
+                player.x-r.x,
+                player.y-r.y
+            );
 
         if(d<best){
 
@@ -911,13 +1224,21 @@ function gatherResource(){
 
     if(!nearest){
 
+        showMessage(
+            "No hay recursos cerca"
+        );
+
         return;
 
     }
 
-    const required=resourceTools[nearest.type];
+    const required=
+        resourceTools[nearest.type];
 
-    if(required && !tools[required].equipped){
+    if(
+        required &&
+        !tools[required].equipped
+    ){
 
         showMessage(
             "Necesitas equipar: "+
@@ -940,7 +1261,8 @@ function gatherResource(){
 
         nearest.alive=false;
 
-        nearest.respawn=rand(15,35);
+        nearest.respawn=
+            rand(15,35);
 
         let amount=1;
 
@@ -948,7 +1270,13 @@ function gatherResource(){
 
             inventory.wood+=amount;
 
-            questProgress("wood",amount);
+            gameStats.treesCollected+=amount;
+
+            questProgress(
+                "wood",
+                amount,
+                "wood"
+            );
 
         }
 
@@ -956,11 +1284,15 @@ function gatherResource(){
 
             inventory.stone+=amount;
 
+            gameStats.rocksCollected+=amount;
+
         }
 
         if(nearest.type==="copper"){
 
             inventory.copper+=amount;
+
+            gameStats.copperCollected+=amount;
 
         }
 
@@ -968,19 +1300,28 @@ function gatherResource(){
 
             inventory.iron+=amount;
 
+            gameStats.ironCollected+=amount;
+
+            questProgress(
+                "iron",
+                amount,
+                "iron"
+            );
+
         }
 
         player.xp+=5;
 
         showMessage(
             "Recolectaste "+
-            resourceName(nearest.type)
+            resourceName(
+                nearest.type
+            )
         );
 
         checkLevelUp();
 
         updateUI();
-
         saveGame();
 
     }
@@ -1003,39 +1344,163 @@ function resourceName(type){
 }
 
 /* =========================================================
+   PESCA
+========================================================= */
+
+function tryFishing(){
+
+    if(player.dead)return;
+
+    if(!tools.fishingRod.equipped){
+
+        showMessage(
+            "Necesitas equipar la caña de pescar"
+        );
+
+        return;
+
+    }
+
+    if(inventory.bait<=0){
+
+        showMessage(
+            "Necesitas cebo para pescar"
+        );
+
+        return;
+
+    }
+
+    const terrain=
+        terrainAt(
+            player.x,
+            player.y
+        );
+
+    if(
+        terrain!==TERRAIN.WATER &&
+        terrain!==TERRAIN.SAND
+    ){
+
+        showMessage(
+            "Debes acercarte al agua para pescar"
+        );
+
+        return;
+
+    }
+
+    inventory.bait--;
+
+    if(Math.random()<.75){
+
+        inventory.fish++;
+
+        gameStats.fishCaught++;
+
+        player.xp+=10;
+
+        floatingText(
+            player.x,
+            player.y-45,
+            "🐟 +1 Pescado"
+        );
+
+        showMessage(
+            "🎣 ¡Has pescado un pez!"
+        );
+
+        checkLevelUp();
+
+    }
+    else{
+
+        showMessage(
+            "🎣 El pez escapó..."
+
+        );
+
+    }
+
+    updateUI();
+    saveGame();
+
+}
+
+/* tecla F */
+
+addEventListener(
+    "keydown",
+    e=>{
+
+        if(
+            e.key.toLowerCase()==="f"
+        ){
+
+            tryFishing();
+
+        }
+
+    }
+);
+
+/* =========================================================
    ENEMIGOS
 ========================================================= */
 
 function updateEnemies(dt){
 
-    for(let i=enemies.length-1;i>=0;i--){
+    for(
+        let i=enemies.length-1;
+        i>=0;
+        i--
+    ){
 
         const e=enemies[i];
 
         if(e.hp<=0)continue;
 
-        const dx=player.x-e.x;
-        const dy=player.y-e.y;
+        const dx=
+            player.x-e.x;
 
-        const dist=Math.hypot(dx,dy);
+        const dy=
+            player.y-e.y;
 
-        if(dist<520 && !player.dead){
+        const dist=
+            Math.hypot(dx,dy);
+
+        if(
+            dist<620 &&
+            !player.dead
+        ){
 
             if(dist>58){
 
-                e.x += dx/dist*e.speed*dt;
-                e.y += dy/dist*e.speed*dt;
+                e.x+=
+                    dx/dist*
+                    e.speed*
+                    dt;
+
+                e.y+=
+                    dy/dist*
+                    e.speed*
+                    dt;
 
             }
             else{
 
                 e.attackCooldown-=dt;
 
-                if(e.attackCooldown<=0){
+                if(
+                    e.attackCooldown<=0
+                ){
 
                     enemyAttack(e);
 
-                    e.attackCooldown=1.2;
+                    e.attackCooldown=
+                        e.elite
+                        ?1
+                        :1.2;
 
                 }
 
@@ -1056,11 +1521,13 @@ function enemyAttack(e){
 
     const reduced=Math.max(
         1,
-        e.damage-player.defense*.35
+        e.damage-
+        player.defense*.35
     );
 
     const damage=Math.round(
-        reduced*rand(.8,1.1)
+        reduced*
+        rand(.8,1.1)
     );
 
     player.hp-=damage;
@@ -1085,12 +1552,19 @@ function enemyAttack(e){
    ATAQUE
 ========================================================= */
 
-document.getElementById("attackButton")
-.addEventListener("pointerdown",()=>{
+const attackButton=
+    document.getElementById(
+        "attackButton"
+    );
 
-    normalAttack();
+if(attackButton){
 
-});
+    attackButton.addEventListener(
+        "pointerdown",
+        normalAttack
+    );
+
+}
 
 function findNearestEnemy(range){
 
@@ -1101,7 +1575,8 @@ function findNearestEnemy(range){
 
         if(e.hp<=0)continue;
 
-        const d=distance(player,e);
+        const d=
+            distance(player,e);
 
         if(d<best){
 
@@ -1122,20 +1597,24 @@ function normalAttack(){
 
     if(player.attackCooldown>0)return;
 
-    const enemy=findNearestEnemy(
-        player.attackRange
-    );
+    const enemy=
+        findNearestEnemy(
+            player.attackRange
+        );
 
     if(!enemy){
 
-        showMessage("No hay enemigo cerca");
+        showMessage(
+            "No hay enemigo cerca"
+        );
 
         return;
 
     }
 
-    let damage =
-        player.damage*rand(.8,1.2);
+    let damage=
+        player.damage*
+        rand(.8,1.2);
 
     if(rageTimer>0){
 
@@ -1169,16 +1648,35 @@ function normalAttack(){
 }
 
 /* =========================================================
-   MUERTE ENEMIGO
+   MUERTE ENEMIGO / LOOT
 ========================================================= */
 
 function killEnemy(enemy){
 
-    const data=enemyTypes[enemy.type];
+    const data=
+        enemyTypes[enemy.type];
 
     player.xp+=data.xp;
 
     inventory.gold+=data.gold;
+
+    gameStats.kills++;
+    gameStats.totalGoldEarned+=data.gold;
+
+    if(enemy.type==="wolf")
+        gameStats.wolvesKilled++;
+
+    if(enemy.type==="boar")
+        gameStats.boarsKilled++;
+
+    if(enemy.type==="goblin")
+        gameStats.goblinsKilled++;
+
+    if(enemy.type==="orc")
+        gameStats.orcsKilled++;
+
+    if(enemy.elite)
+        gameStats.elitesKilled++;
 
     questProgress(
         "kill",
@@ -1186,7 +1684,9 @@ function killEnemy(enemy){
         enemy.type
     );
 
-    /* LOOT */
+    /* =====================================================
+       LOOT
+    ===================================================== */
 
     const roll=Math.random();
 
@@ -1194,15 +1694,47 @@ function killEnemy(enemy){
 
         inventory.wolfFang++;
 
-        if(roll<.25){
+        floatingText(
+            enemy.x,
+            enemy.y-40,
+            "🐺 Colmillo"
+        );
+
+        if(roll<.30){
 
             inventory.leather++;
 
             floatingText(
                 enemy.x,
-                enemy.y-40,
+                enemy.y-60,
                 "🟤 Cuero"
             );
+
+        }
+
+        if(roll<.15){
+
+            inventory.meat++;
+
+        }
+
+    }
+
+    if(enemy.type==="boar"){
+
+        inventory.meat++;
+
+        inventory.boarTusk++;
+
+        floatingText(
+            enemy.x,
+            enemy.y-40,
+            "🥩 Carne"
+        );
+
+        if(roll<.20){
+
+            inventory.leather++;
 
         }
 
@@ -1212,17 +1744,99 @@ function killEnemy(enemy){
 
         inventory.goblinEar++;
 
+        floatingText(
+            enemy.x,
+            enemy.y-40,
+            "👂 Oreja"
+        );
+
+        if(roll<.25){
+
+            inventory.copper++;
+
+        }
+
+    }
+
+    if(enemy.type==="skeleton"){
+
+        if(roll<.35){
+
+            inventory.iron++;
+
+            floatingText(
+                enemy.x,
+                enemy.y-40,
+                "⚙️ Hierro"
+            );
+
+        }
+
+    }
+
+    if(enemy.type==="spider"){
+
+        inventory.leather++;
+
+        if(roll<.25){
+
+            inventory.meat++;
+
+        }
+
+    }
+
+    if(enemy.type==="orc"){
+
+        inventory.orcTooth++;
+
+        floatingText(
+            enemy.x,
+            enemy.y-45,
+            "🦷 Diente de Orco"
+        );
+
+        if(roll<.30){
+
+            inventory.iron++;
+
+        }
+
+        if(roll<.10){
+
+            inventory.magicAsh++;
+
+        }
+
+    }
+
+    if(enemy.type==="eliteOrc"){
+
+        inventory.magicAsh+=2;
+
+        inventory.iron+=3;
+
+        inventory.gold+=50;
+
+        floatingText(
+            enemy.x,
+            enemy.y-60,
+            "👑 LOOT ÉLITE"
+        );
+
+        showMessage(
+            "🔥 ¡Has derrotado un ORCO ÉLITE!"
+        );
+
     }
 
     if(roll<.08){
 
-        const potion=1;
-
-        inventory.potions+=potion;
+        inventory.potions++;
 
         floatingText(
             enemy.x,
-            enemy.y-50,
+            enemy.y-80,
             "🧪 Poción"
         );
 
@@ -1239,7 +1853,65 @@ function killEnemy(enemy){
     checkLevelUp();
 
     updateUI();
+    saveGame();
 
+}
+
+/* =========================================================
+   POCIONES
+========================================================= */
+
+function usePotion(){
+
+    if(player.dead)return;
+
+    if(inventory.potions<=0){
+
+        showMessage(
+            "No tienes pociones"
+        );
+
+        return;
+
+    }
+
+    if(
+        player.hp>=
+        player.maxHp
+    ){
+
+        showMessage(
+            "Tu vida ya está completa"
+        );
+
+        return;
+
+    }
+
+    inventory.potions--;
+
+    const heal=
+        Math.round(
+            player.maxHp*.40
+        );
+
+    player.hp=
+        Math.min(
+            player.maxHp,
+            player.hp+heal
+        );
+
+    floatingText(
+        player.x,
+        player.y-45,
+        "🧪 +"+heal
+    );
+
+    showMessage(
+        "Has usado una poción"
+    );
+
+    updateUI();
     saveGame();
 
 }
@@ -1251,17 +1923,25 @@ function killEnemy(enemy){
 function renderSkills(){
 
     const container=
-        document.getElementById("skills");
+        document.getElementById(
+            "skills"
+        );
+
+    if(!container)return;
 
     container.innerHTML="";
 
     for(const skill of skills){
 
-        const el=document.createElement("button");
+        const el=
+            document.createElement(
+                "button"
+            );
 
         el.className="skill";
 
-        el.dataset.id=skill.id;
+        el.dataset.id=
+            skill.id;
 
         el.innerHTML=`
 
@@ -1281,11 +1961,10 @@ function renderSkills(){
 
         `;
 
-        el.addEventListener("pointerdown",()=>{
-
-            useSkill(skill.id);
-
-        });
+        el.addEventListener(
+            "pointerdown",
+            ()=>useSkill(skill.id)
+        );
 
         container.appendChild(el);
 
@@ -1300,11 +1979,16 @@ function useSkill(id){
     if(player.dead)return;
 
     const skill=
-        skills.find(s=>s.id===id);
+        skills.find(
+            s=>s.id===id
+        );
 
     if(!skill)return;
 
-    if(player.level<skill.level){
+    if(
+        player.level<
+        skill.level
+    ){
 
         showMessage(
             "Desbloqueas esta habilidad en nivel "+
@@ -1315,15 +1999,22 @@ function useSkill(id){
 
     }
 
-    if((skillCooldowns[id]||0)>0){
+    if(
+        (skillCooldowns[id]||0)>0
+    ){
 
         return;
 
     }
 
-    if(player.mana<skill.mana){
+    if(
+        player.mana<
+        skill.mana
+    ){
 
-        showMessage("No tienes suficiente maná");
+        showMessage(
+            "No tienes suficiente maná"
+        );
 
         return;
 
@@ -1331,63 +2022,50 @@ function useSkill(id){
 
     player.mana-=skill.mana;
 
-    skillCooldowns[id]=skill.cooldown;
+    skillCooldowns[id]=
+        skill.cooldown;
 
     player.skillAnimation=.5;
 
-    if(id==="power"){
-
+    if(id==="power")
         powerStrike();
 
-    }
-
-    if(id==="heal"){
-
+    if(id==="heal")
         healSkill(skill);
 
-    }
-
-    if(id==="whirlwind"){
-
+    if(id==="whirlwind")
         whirlwind(skill);
 
-    }
-
-    if(id==="rage"){
-
+    if(id==="rage")
         rageSkill(skill);
 
-    }
-
-    if(id==="execution"){
-
+    if(id==="execution")
         execution(skill);
 
-    }
-
-    if(id==="rain"){
-
+    if(id==="rain")
         rainSkill(skill);
 
-    }
-
-    if(id==="ash"){
-
+    if(id==="ash")
         ashSkill(skill);
-
-    }
 
     updateUI();
 
 }
 
+/* =========================================================
+   SKILL - GOLPE PODEROSO
+========================================================= */
+
 function powerStrike(){
 
-    const e=findNearestEnemy(150);
+    const e=
+        findNearestEnemy(150);
 
     if(!e){
 
-        showMessage("No hay enemigo cerca");
+        showMessage(
+            "No hay enemigo cerca"
+        );
 
         return;
 
@@ -1414,11 +2092,16 @@ function powerStrike(){
 
 }
 
+/* =========================================================
+   CURACIÓN
+========================================================= */
+
 function healSkill(skill){
 
     const heal=
         Math.round(
-            player.maxHp*skill.heal
+            player.maxHp*
+            skill.heal
         );
 
     player.hp=
@@ -1435,6 +2118,10 @@ function healSkill(skill){
 
 }
 
+/* =========================================================
+   TORBELLINO
+========================================================= */
+
 function whirlwind(skill){
 
     effectCircle(
@@ -1447,13 +2134,15 @@ function whirlwind(skill){
 
         if(e.hp<=0)continue;
 
-        const d=distance(player,e);
-
-        if(d<=skill.radius){
+        if(
+            distance(player,e)<=
+            skill.radius
+        ){
 
             const damage=
                 Math.round(
-                    player.damage*skill.damage
+                    player.damage*
+                    skill.damage
                 );
 
             e.hp-=damage;
@@ -1476,9 +2165,14 @@ function whirlwind(skill){
 
 }
 
+/* =========================================================
+   FURIA
+========================================================= */
+
 function rageSkill(skill){
 
-    rageTimer=skill.duration;
+    rageTimer=
+        skill.duration;
 
     floatingText(
         player.x,
@@ -1488,22 +2182,32 @@ function rageSkill(skill){
 
 }
 
+/* =========================================================
+   EJECUCIÓN
+========================================================= */
+
 function execution(skill){
 
-    const e=findNearestEnemy(160);
+    const e=
+        findNearestEnemy(160);
 
     if(!e){
 
-        showMessage("No hay enemigo cerca");
+        showMessage(
+            "No hay enemigo cerca"
+        );
 
         return;
 
     }
 
     let damage=
-        player.damage*skill.damage;
+        player.damage*
+        skill.damage;
 
-    if(e.hp/e.maxHp<.4){
+    if(
+        e.hp/e.maxHp<.4
+    ){
 
         damage*=1.5;
 
@@ -1527,6 +2231,10 @@ function execution(skill){
 
 }
 
+/* =========================================================
+   LLUVIA DE ESPADAS
+========================================================= */
+
 function rainSkill(skill){
 
     effectCircle(
@@ -1539,11 +2247,15 @@ function rainSkill(skill){
 
         if(e.hp<=0)continue;
 
-        if(distance(player,e)<=skill.radius){
+        if(
+            distance(player,e)<=
+            skill.radius
+        ){
 
             const damage=
                 Math.round(
-                    player.damage*skill.damage
+                    player.damage*
+                    skill.damage
                 );
 
             e.hp-=damage;
@@ -1566,6 +2278,10 @@ function rainSkill(skill){
 
 }
 
+/* =========================================================
+   IRA DE CENIZA
+========================================================= */
+
 function ashSkill(skill){
 
     effectCircle(
@@ -1578,11 +2294,15 @@ function ashSkill(skill){
 
         if(e.hp<=0)continue;
 
-        if(distance(player,e)<=skill.radius){
+        if(
+            distance(player,e)<=
+            skill.radius
+        ){
 
             const damage=
                 Math.round(
-                    player.damage*skill.damage
+                    player.damage*
+                    skill.damage
                 );
 
             e.hp-=damage;
@@ -1611,13 +2331,18 @@ function ashSkill(skill){
 
 const effects=[];
 
-function effectCircle(x,y,radius){
+function effectCircle(
+    x,
+    y,
+    radius
+){
 
     effects.push({
 
         x,
         y,
         radius,
+
         life:.4,
         maxLife:.4
 
@@ -1627,11 +2352,17 @@ function effectCircle(x,y,radius){
 
 function updateEffects(dt){
 
-    for(let i=effects.length-1;i>=0;i--){
+    for(
+        let i=effects.length-1;
+        i>=0;
+        i--
+    ){
 
         effects[i].life-=dt;
 
-        if(effects[i].life<=0){
+        if(
+            effects[i].life<=0
+        ){
 
             effects.splice(i,1);
 
@@ -1642,21 +2373,55 @@ function updateEffects(dt){
 }
 
 /* =========================================================
-   FLOATING TEXT
+   TEXTO FLOTANTE
 ========================================================= */
 
 const floatingTexts=[];
 
-function floatingText(x,y,text){
+function floatingText(
+    x,
+    y,
+    text
+){
 
     floatingTexts.push({
 
         x,
         y,
+
         text,
+
         life:1
 
     });
+
+}
+
+function updateFloatingTexts(dt){
+
+    for(
+        let i=floatingTexts.length-1;
+        i>=0;
+        i--
+    ){
+
+        const f=
+            floatingTexts[i];
+
+        f.life-=dt;
+
+        f.y-=25*dt;
+
+        if(f.life<=0){
+
+            floatingTexts.splice(
+                i,
+                1
+            );
+
+        }
+
+    }
 
 }
 
@@ -1664,49 +2429,60 @@ function floatingText(x,y,text){
    NPC INTERACCIÓN
 ========================================================= */
 
-canvas.addEventListener("dblclick",()=>{
-
-    interactNPC();
-
-});
-
 function interactNPC(){
 
-    let nearest=null;
-    let best=95;
+    const nearest=
+        findNearestNPC(105);
 
-    for(const npc of npcs){
+    if(!nearest){
 
-        const d=distance(player,npc);
+        showMessage(
+            "No hay NPC cerca"
+        );
 
-        if(d<best){
-
-            best=d;
-            nearest=npc;
-
-        }
+        return;
 
     }
-
-    if(!nearest)return;
 
     openNPC(nearest);
 
 }
 
+canvas.addEventListener(
+    "dblclick",
+    e=>{
+
+        e.preventDefault();
+
+        interactNPC();
+
+    }
+);
+
 function openNPC(npc){
 
     const panel=
-        document.getElementById("npcPanel");
+        document.getElementById(
+            "npcPanel"
+        );
 
     const title=
-        document.getElementById("npcTitle");
+        document.getElementById(
+            "npcTitle"
+        );
 
     const content=
-        document.getElementById("npcContent");
+        document.getElementById(
+            "npcContent"
+        );
+
+    if(!panel || !title || !content)
+        return;
 
     title.textContent=
-        npc.icon+" "+npc.name;
+        npc.icon+
+        " "+
+        npc.name;
 
     content.innerHTML="";
 
@@ -1736,9 +2512,27 @@ function openNPC(npc){
 
         </button>
 
+        <button class="itemButton"
+        onclick="acceptQuest('goblins')">
+
+        👺 Aceptar misión: Problemas en el bosque
+
+        </button>
+
+        <button class="itemButton"
+        onclick="acceptQuest('miner')">
+
+        ⛏️ Aceptar misión: Minería para Aldric
+
+        </button>
+
         `;
 
-        questProgress("talk",1,"guardian");
+        questProgress(
+            "talk",
+            1,
+            "guardian"
+        );
 
     }
 
@@ -1751,6 +2545,16 @@ function openNPC(npc){
         Soy Aldric, el herrero.
         Puedo mejorar tu equipo cuando consigas
         suficientes materiales.
+
+        <br><br>
+
+        Mejora actual de espada:
+        +${equipment.weapon.upgrade}
+
+        <br>
+
+        Daño del arma:
+        ${equipment.weapon.damage}
 
         </div>
 
@@ -1810,13 +2614,28 @@ function openNPC(npc){
 
 function acceptQuest(id){
 
-    const q=quests.find(x=>x.id===id);
+    const q=
+        quests.find(
+            x=>x.id===id
+        );
 
     if(!q)return;
 
+    if(q.completed){
+
+        showMessage(
+            "Esta misión ya fue completada"
+        );
+
+        return;
+
+    }
+
     if(q.accepted){
 
-        showMessage("Ya aceptaste esta misión");
+        showMessage(
+            "Ya aceptaste esta misión"
+        );
 
         return;
 
@@ -1825,37 +2644,45 @@ function acceptQuest(id){
     q.accepted=true;
 
     showMessage(
-        "Misión aceptada: "+q.title
+        "📜 Misión aceptada: "+
+        q.title
     );
 
     updateQuestUI();
-
     saveGame();
 
 }
 
-function questProgress(type,amount,target){
+function questProgress(
+    type,
+    amount,
+    target
+){
 
     for(const q of quests){
 
-        if(!q.accepted || q.completed)continue;
+        if(
+            !q.accepted ||
+            q.completed
+        )continue;
 
-        if(q.type===type){
+        if(q.type!==type)continue;
+
+        if(
+            !q.target ||
+            q.target===target
+        ){
+
+            q.progress+=amount;
 
             if(
-                !q.target ||
-                q.target===target
+                q.progress>=q.needed
             ){
 
-                q.progress+=amount;
+                q.progress=
+                    q.needed;
 
-                if(q.progress>=q.needed){
-
-                    q.progress=q.needed;
-
-                    completeQuest(q);
-
-                }
+                completeQuest(q);
 
             }
 
@@ -1871,12 +2698,20 @@ function completeQuest(q){
 
     q.completed=true;
 
-    inventory.gold+=q.rewardGold;
+    inventory.gold+=
+        q.rewardGold;
 
-    player.xp+=q.rewardXP;
+    player.xp+=
+        q.rewardXP;
+
+    floatingText(
+        player.x,
+        player.y-60,
+        "📜 MISIÓN COMPLETADA"
+    );
 
     showMessage(
-        "🎉 Misión completada: "+
+        "🎉 "+
         q.title+
         " +"+
         q.rewardGold+
@@ -1888,7 +2723,6 @@ function completeQuest(q){
     checkLevelUp();
 
     updateUI();
-
     saveGame();
 
 }
@@ -1897,11 +2731,17 @@ function updateQuestUI(){
 
     const active=
         quests.find(
-            q=>q.accepted&&!q.completed
+            q=>
+                q.accepted &&
+                !q.completed
         );
 
     const text=
-        document.getElementById("questText");
+        document.getElementById(
+            "questText"
+        );
+
+    if(!text)return;
 
     if(!active){
 
@@ -1957,7 +2797,9 @@ function buyPotion(){
 
     if(inventory.gold<25){
 
-        showMessage("No tienes suficiente oro");
+        showMessage(
+            "No tienes suficiente oro"
+        );
 
         return;
 
@@ -1967,10 +2809,11 @@ function buyPotion(){
 
     inventory.potions++;
 
-    showMessage("Compraste una poción");
+    showMessage(
+        "🧪 Compraste una poción"
+    );
 
     updateUI();
-
     saveGame();
 
 }
@@ -1979,7 +2822,9 @@ function buyBait(){
 
     if(inventory.gold<5){
 
-        showMessage("No tienes suficiente oro");
+        showMessage(
+            "No tienes suficiente oro"
+        );
 
         return;
 
@@ -1987,18 +2832,19 @@ function buyBait(){
 
     inventory.gold-=5;
 
-    inventory.fish++;
+    inventory.bait++;
 
-    showMessage("Compraste cebo");
+    showMessage(
+        "🪱 Compraste cebo"
+    );
 
     updateUI();
-
     saveGame();
 
 }
 
 /* =========================================================
-   MEJORAS
+   MEJORAS DEL HERRERO
 ========================================================= */
 
 function upgradeWeapon(){
@@ -2021,10 +2867,12 @@ function upgradeWeapon(){
 
     equipment.weapon.damage+=5;
 
+    equipment.weapon.upgrade++;
+
     player.damage+=5;
 
     showMessage(
-        "🗡️ Espada mejorada"
+        "🗡️ ¡Espada mejorada! +5 daño"
     );
 
     updateUI();
@@ -2052,10 +2900,12 @@ function upgradeArmor(){
 
     equipment.armor.defense+=3;
 
+    equipment.armor.upgrade++;
+
     player.defense+=3;
 
     showMessage(
-        "🛡️ Armadura mejorada"
+        "🛡️ ¡Armadura mejorada! +3 defensa"
     );
 
     updateUI();
@@ -2070,13 +2920,18 @@ function upgradeArmor(){
 function showSkillsInfo(){
 
     const content=
-        document.getElementById("npcContent");
+        document.getElementById(
+            "npcContent"
+        );
+
+    if(!content)return;
 
     content.innerHTML=`
 
     <div>
 
-    ${skills.map(s=>`
+    ${skills.map(
+        s=>`
 
         <div class="questItem">
 
@@ -2094,7 +2949,8 @@ function showSkillsInfo(){
 
         </div>
 
-    `).join("")}
+        `
+    ).join("")}
 
     </div>
 
@@ -2109,7 +2965,11 @@ function showSkillsInfo(){
 function renderInventory(){
 
     const content=
-        document.getElementById("inventoryContent");
+        document.getElementById(
+            "inventoryContent"
+        );
+
+    if(!content)return;
 
     const items=[
 
@@ -2117,26 +2977,41 @@ function renderInventory(){
         ["🪨","Piedra",inventory.stone],
         ["🟠","Cobre",inventory.copper],
         ["⚙️","Hierro",inventory.iron],
+
         ["🐟","Pescado",inventory.fish],
+        ["🪱","Cebo",inventory.bait],
+
         ["🧪","Poción",inventory.potions],
         ["🥩","Carne",inventory.meat],
+
         ["🐺","Colmillo de lobo",inventory.wolfFang],
         ["👂","Oreja de goblin",inventory.goblinEar],
-        ["🟤","Cuero",inventory.leather]
+
+        ["🟤","Cuero",inventory.leather],
+        ["🐗","Colmillo de jabalí",inventory.boarTusk],
+
+        ["🦷","Diente de orco",inventory.orcTooth],
+        ["🔥","Ceniza mágica",inventory.magicAsh],
+
+        ["🌿","Hierbas",inventory.herbs]
 
     ];
 
     content.innerHTML=`
 
         <div class="goldText">
-        💰 Oro: ${inventory.gold}
+
+        💰 Oro:
+        ${inventory.gold}
+
         </div>
 
         <br>
 
         <div class="inventoryGrid">
 
-        ${items.map(item=>`
+        ${items.map(
+            item=>`
 
             <div class="slot">
 
@@ -2152,9 +3027,26 @@ function renderInventory(){
 
             </div>
 
-        `).join("")}
+        `
+        ).join("")}
 
         </div>
+
+        <br>
+
+        <button class="itemButton"
+        onclick="usePotion()">
+
+        🧪 Usar poción
+
+        </button>
+
+        <button class="itemButton"
+        onclick="tryFishing()">
+
+        🎣 Pescar
+
+        </button>
 
     `;
 
@@ -2166,31 +3058,66 @@ function renderInventory(){
 
 function renderCharacter(){
 
-    document.getElementById("panelLevel")
-    .textContent=player.level;
+    const level=
+        document.getElementById(
+            "panelLevel"
+        );
 
-    document.getElementById("panelHp")
-    .textContent=
-        Math.round(player.maxHp);
+    if(level)
+        level.textContent=
+            player.level;
 
-    document.getElementById("panelMana")
-    .textContent=
-        Math.round(player.maxMana);
+    const hp=
+        document.getElementById(
+            "panelHp"
+        );
 
-    document.getElementById("panelDamage")
-    .textContent=
-        Math.round(player.damage);
+    if(hp)
+        hp.textContent=
+            Math.round(player.maxHp);
 
-    document.getElementById("panelDefense")
-    .textContent=
-        Math.round(player.defense);
+    const mana=
+        document.getElementById(
+            "panelMana"
+        );
 
-    document.getElementById("panelSpeed")
-    .textContent=
-        Math.round(player.speed);
+    if(mana)
+        mana.textContent=
+            Math.round(player.maxMana);
+
+    const damage=
+        document.getElementById(
+            "panelDamage"
+        );
+
+    if(damage)
+        damage.textContent=
+            Math.round(player.damage);
+
+    const defense=
+        document.getElementById(
+            "panelDefense"
+        );
+
+    if(defense)
+        defense.textContent=
+            Math.round(player.defense);
+
+    const speed=
+        document.getElementById(
+            "panelSpeed"
+        );
+
+    if(speed)
+        speed.textContent=
+            Math.round(player.speed);
 
     const content=
-        document.getElementById("equipmentContent");
+        document.getElementById(
+            "equipmentContent"
+        );
+
+    if(!content)return;
 
     const slots=[
 
@@ -2204,28 +3131,39 @@ function renderCharacter(){
 
     content.innerHTML=
 
-        slots.map(s=>{
+        slots.map(
+            s=>{
 
-            const item=equipment[s[2]];
+                const item=
+                    equipment[s[2]];
 
-            return `
+                return `
 
-            <div class="itemButton">
+                <div class="itemButton">
 
-            ${s[0]}
-            <b>${s[1]}:</b>
-            ${item.name}
+                ${s[0]}
 
-            <br>
+                <b>${s[1]}:</b>
 
-            ⚔️ ${item.damage}
-            🛡️ ${item.defense}
+                ${item.name}
 
-            </div>
+                <br>
 
-            `;
+                ⚔️ ${item.damage}
 
-        }).join("");
+                🛡️ ${item.defense}
+
+                <br>
+
+                Mejora:
+                +${item.upgrade||0}
+
+                </div>
+
+                `;
+
+            }
+        ).join("");
 
 }
 
@@ -2236,43 +3174,58 @@ function renderCharacter(){
 function renderQuests(){
 
     const content=
-        document.getElementById("questsContent");
+        document.getElementById(
+            "questsContent"
+        );
+
+    if(!content)return;
 
     content.innerHTML=
-        quests.map(q=>`
 
-        <div class="questItem ${q.completed?"done":""}">
+        quests.map(
+            q=>`
 
-        <b>${q.title}</b>
+            <div class="questItem ${
+                q.completed
+                ?"done"
+                :""
+            }">
 
-        <br>
+            <b>${q.title}</b>
 
-        ${q.description}
+            <br>
 
-        <br>
+            ${q.description}
 
-        Progreso:
-        ${q.progress}/${q.needed}
+            <br>
 
-        <br>
+            Progreso:
+            ${q.progress}/${q.needed}
 
-        Recompensa:
-        💰 ${q.rewardGold}
-        ⭐ ${q.rewardXP}
+            <br>
 
-        <br>
+            Recompensa:
 
-        ${
-            q.completed
-            ?"✅ COMPLETADA"
-            :q.accepted
-            ?"🟡 ACTIVA"
-            :"⚪ NO ACEPTADA"
-        }
+            💰 ${q.rewardGold}
 
-        </div>
+            ⭐ ${q.rewardXP}
 
-        `).join("");
+            <br>
+
+            ${
+                q.completed
+                ?"✅ COMPLETADA"
+                :
+                q.accepted
+                ?"🟡 ACTIVA"
+                :
+                "⚪ NO ACEPTADA"
+            }
+
+            </div>
+
+            `
+        ).join("");
 
 }
 
@@ -2280,61 +3233,131 @@ function renderQuests(){
    BOTONES UI
 ========================================================= */
 
-document.getElementById("inventoryButton")
-.addEventListener("pointerdown",()=>{
-
-    renderInventory();
-
-    document
-        .getElementById("inventoryPanel")
-        .classList.add("open");
-
-});
-
-document.getElementById("characterButton")
-.addEventListener("pointerdown",()=>{
-
-    renderCharacter();
-
-    document
-        .getElementById("characterPanel")
-        .classList.add("open");
-
-});
-
-document.getElementById("questsButton")
-.addEventListener("pointerdown",()=>{
-
-    renderQuests();
-
-    document
-        .getElementById("questsPanel")
-        .classList.add("open");
-
-});
-
-document.getElementById("shopButton")
-.addEventListener("pointerdown",()=>{
-
-    const npc=npcs.find(
-        n=>n.type==="merchant"
+const inventoryButton=
+    document.getElementById(
+        "inventoryButton"
     );
 
-    openNPC(npc);
+if(inventoryButton){
 
-});
+    inventoryButton.addEventListener(
+        "pointerdown",
+        ()=>{
 
-/* cerrar paneles */
+            renderInventory();
 
-document.querySelectorAll(".closePanel")
+            const panel=
+                document.getElementById(
+                    "inventoryPanel"
+                );
+
+            if(panel)
+                panel.classList.add("open");
+
+        }
+    );
+
+}
+
+const characterButton=
+    document.getElementById(
+        "characterButton"
+    );
+
+if(characterButton){
+
+    characterButton.addEventListener(
+        "pointerdown",
+        ()=>{
+
+            renderCharacter();
+
+            const panel=
+                document.getElementById(
+                    "characterPanel"
+                );
+
+            if(panel)
+                panel.classList.add("open");
+
+        }
+    );
+
+}
+
+const questsButton=
+    document.getElementById(
+        "questsButton"
+    );
+
+if(questsButton){
+
+    questsButton.addEventListener(
+        "pointerdown",
+        ()=>{
+
+            renderQuests();
+
+            const panel=
+                document.getElementById(
+                    "questsPanel"
+                );
+
+            if(panel)
+                panel.classList.add("open");
+
+        }
+    );
+
+}
+
+const shopButton=
+    document.getElementById(
+        "shopButton"
+    );
+
+if(shopButton){
+
+    shopButton.addEventListener(
+        "pointerdown",
+        ()=>{
+
+            const npc=
+                npcs.find(
+                    n=>
+                        n.type==="merchant"
+                );
+
+            if(npc)
+                openNPC(npc);
+
+        }
+    );
+
+}
+
+/* =========================================================
+   CERRAR PANELES
+========================================================= */
+
+document
+.querySelectorAll(".closePanel")
 .forEach(btn=>{
 
-    btn.addEventListener("pointerdown",()=>{
+    btn.addEventListener(
+        "pointerdown",
+        ()=>{
 
-        btn.parentElement
-            .classList.remove("open");
+            const parent=
+                btn.parentElement;
 
-    });
+            if(parent)
+                parent.classList.remove(
+                    "open"
+                );
+
+        }
+    );
 
 });
 
@@ -2344,9 +3367,13 @@ document.querySelectorAll(".closePanel")
 
 function checkLevelUp(){
 
-    while(player.xp>=player.xpNeeded){
+    while(
+        player.xp>=
+        player.xpNeeded
+    ){
 
-        player.xp-=player.xpNeeded;
+        player.xp-=
+            player.xpNeeded;
 
         player.level++;
 
@@ -2356,16 +3383,16 @@ function checkLevelUp(){
             );
 
         player.maxHp+=25;
-
         player.maxMana+=12;
 
         player.damage+=6;
-
         player.defense+=2;
 
-        player.hp=player.maxHp;
+        player.hp=
+            player.maxHp;
 
-        player.mana=player.maxMana;
+        player.mana=
+            player.maxMana;
 
         showMessage(
             "🎉 ¡SUBISTE A NIVEL "+
@@ -2373,21 +3400,32 @@ function checkLevelUp(){
             "!"
         );
 
+        floatingText(
+            player.x,
+            player.y-70,
+            "⭐ NIVEL "+player.level
+        );
+
         const unlocked=
             skills.find(
-                s=>s.level===player.level
+                s=>
+                    s.level===
+                    player.level
             );
 
         if(unlocked){
 
-            setTimeout(()=>{
+            setTimeout(
+                ()=>{
 
-                showMessage(
-                    "✨ Nueva habilidad: "+
-                    unlocked.name
-                );
+                    showMessage(
+                        "✨ Nueva habilidad: "+
+                        unlocked.name
+                    );
 
-            },900);
+                },
+                900
+            );
 
         }
 
@@ -2403,18 +3441,23 @@ function checkLevelUp(){
 
 function updateSkills(){
 
-    document.querySelectorAll(".skill")
+    document
+    .querySelectorAll(".skill")
     .forEach(el=>{
 
-        const id=el.dataset.id;
+        const id=
+            el.dataset.id;
 
         const skill=
             skills.find(
                 s=>s.id===id
             );
 
+        if(!skill)return;
+
         const locked=
-            player.level<skill.level;
+            player.level<
+            skill.level;
 
         el.classList.toggle(
             "locked",
@@ -2422,7 +3465,11 @@ function updateSkills(){
         );
 
         const cd=
-            el.querySelector(".cooldown");
+            el.querySelector(
+                ".cooldown"
+            );
+
+        if(!cd)return;
 
         const remaining=
             skillCooldowns[id]||0;
@@ -2430,16 +3477,20 @@ function updateSkills(){
         if(remaining>0){
 
             cd.textContent=
-                Math.ceil(remaining);
+                Math.ceil(
+                    remaining
+                );
 
-            cd.style.display="flex";
+            cd.style.display=
+                "flex";
 
         }
         else{
 
             cd.textContent="";
 
-            cd.style.display="none";
+            cd.style.display=
+                "none";
 
         }
 
@@ -2461,9 +3512,14 @@ function die(){
 
     player.respawnTimer=3;
 
-    document
-        .getElementById("deathScreen")
-        .style.display="flex";
+    const screen=
+        document.getElementById(
+            "deathScreen"
+        );
+
+    if(screen)
+        screen.style.display=
+            "flex";
 
 }
 
@@ -2471,17 +3527,28 @@ function respawn(){
 
     player.dead=false;
 
-    player.x=respawnPoint.x;
-    player.y=respawnPoint.y;
+    player.x=
+        respawnPoint.x;
 
-    player.hp=player.maxHp;
-    player.mana=player.maxMana;
+    player.y=
+        respawnPoint.y;
+
+    player.hp=
+        player.maxHp;
+
+    player.mana=
+        player.maxMana;
 
     player.respawnTimer=0;
 
-    document
-        .getElementById("deathScreen")
-        .style.display="none";
+    const screen=
+        document.getElementById(
+            "deathScreen"
+        );
+
+    if(screen)
+        screen.style.display=
+            "none";
 
     showMessage(
         "🏰 Has regresado a la ciudad"
@@ -2498,63 +3565,140 @@ function updateUI(){
     const hpPercent=
         Math.max(
             0,
-            player.hp/player.maxHp*100
+            player.hp/
+            player.maxHp*100
         );
 
     const manaPercent=
-        player.mana/player.maxMana*100;
+        player.mana/
+        player.maxMana*100;
 
     const xpPercent=
-        player.xp/player.xpNeeded*100;
+        player.xp/
+        player.xpNeeded*100;
 
-    document.getElementById("hpBar")
-        .style.width=hpPercent+"%";
+    const hpBar=
+        document.getElementById(
+            "hpBar"
+        );
 
-    document.getElementById("manaBar")
-        .style.width=manaPercent+"%";
+    if(hpBar)
+        hpBar.style.width=
+            hpPercent+"%";
 
-    document.getElementById("xpBar")
-        .style.width=xpPercent+"%";
+    const manaBar=
+        document.getElementById(
+            "manaBar"
+        );
 
-    document.getElementById("hpText")
-        .textContent=
-        Math.round(player.hp)+
-        " / "+
-        Math.round(player.maxHp);
+    if(manaBar)
+        manaBar.style.width=
+            manaPercent+"%";
 
-    document.getElementById("manaText")
-        .textContent=
-        Math.round(player.mana)+
-        " / "+
-        Math.round(player.maxMana);
+    const xpBar=
+        document.getElementById(
+            "xpBar"
+        );
 
-    document.getElementById("xpText")
-        .textContent=
-        Math.round(player.xp)+
-        " / "+
-        Math.round(player.xpNeeded);
+    if(xpBar)
+        xpBar.style.width=
+            xpPercent+"%";
 
-    document.getElementById("level")
-        .textContent=
-        "Nv. "+player.level;
+    const hpText=
+        document.getElementById(
+            "hpText"
+        );
 
-    document.getElementById("gold")
-        .textContent=inventory.gold;
+    if(hpText)
+        hpText.textContent=
+            Math.round(player.hp)+
+            " / "+
+            Math.round(player.maxHp);
 
-    document.getElementById("wood")
-        .textContent=inventory.wood;
+    const manaText=
+        document.getElementById(
+            "manaText"
+        );
 
-    document.getElementById("stone")
-        .textContent=inventory.stone;
+    if(manaText)
+        manaText.textContent=
+            Math.round(player.mana)+
+            " / "+
+            Math.round(player.maxMana);
 
-    document.getElementById("copper")
-        .textContent=inventory.copper;
+    const xpText=
+        document.getElementById(
+            "xpText"
+        );
 
-    document.getElementById("iron")
-        .textContent=inventory.iron;
+    if(xpText)
+        xpText.textContent=
+            Math.round(player.xp)+
+            " / "+
+            Math.round(player.xpNeeded);
 
-    document.getElementById("fish")
-        .textContent=inventory.fish;
+    const level=
+        document.getElementById(
+            "level"
+        );
+
+    if(level)
+        level.textContent=
+            "Nv. "+player.level;
+
+    const gold=
+        document.getElementById(
+            "gold"
+        );
+
+    if(gold)
+        gold.textContent=
+            inventory.gold;
+
+    const wood=
+        document.getElementById(
+            "wood"
+        );
+
+    if(wood)
+        wood.textContent=
+            inventory.wood;
+
+    const stone=
+        document.getElementById(
+            "stone"
+        );
+
+    if(stone)
+        stone.textContent=
+            inventory.stone;
+
+    const copper=
+        document.getElementById(
+            "copper"
+        );
+
+    if(copper)
+        copper.textContent=
+            inventory.copper;
+
+    const iron=
+        document.getElementById(
+            "iron"
+        );
+
+    if(iron)
+        iron.textContent=
+            inventory.iron;
+
+    const fish=
+        document.getElementById(
+            "fish"
+        );
+
+    if(fish)
+        fish.textContent=
+            inventory.fish;
 
     updateSkills();
 
@@ -2569,34 +3713,54 @@ let messageTimer=null;
 function showMessage(text){
 
     const el=
-        document.getElementById("message");
+        document.getElementById(
+            "message"
+        );
+
+    if(!el){
+
+        console.log(text);
+        return;
+
+    }
 
     el.textContent=text;
 
-    el.style.display="block";
+    el.style.display=
+        "block";
 
-    clearTimeout(messageTimer);
+    clearTimeout(
+        messageTimer
+    );
 
     messageTimer=
-        setTimeout(()=>{
+        setTimeout(
+            ()=>{
 
-            el.style.display="none";
+                el.style.display=
+                    "none";
 
-        },2200);
+            },
+            2200
+        );
 
 }
 
 /* =========================================================
-   DIBUJO DEL TERRENO
+   TERRENO
 ========================================================= */
 
 function drawTerrain(){
 
     const startX=
-        Math.floor(camera.x/TILE)-1;
+        Math.floor(
+            camera.x/TILE
+        )-1;
 
     const startY=
-        Math.floor(camera.y/TILE)-1;
+        Math.floor(
+            camera.y/TILE
+        )-1;
 
     const endX=
         Math.ceil(
@@ -2608,14 +3772,28 @@ function drawTerrain(){
             (camera.y+H)/TILE
         )+1;
 
-    for(let ty=startY;ty<endY;ty++){
+    for(
+        let ty=startY;
+        ty<endY;
+        ty++
+    ){
 
-        for(let tx=startX;tx<endX;tx++){
+        for(
+            let tx=startX;
+            tx<endX;
+            tx++
+        ){
 
-            if(tx<0||ty<0)continue;
+            if(
+                tx<0 ||
+                ty<0
+            )continue;
 
-            const x=tx*TILE;
-            const y=ty*TILE;
+            const x=
+                tx*TILE;
+
+            const y=
+                ty*TILE;
 
             const t=
                 terrainAt(
@@ -2623,35 +3801,20 @@ function drawTerrain(){
                     y+TILE/2
                 );
 
-            if(t===TERRAIN.GRASS){
-
+            if(t===TERRAIN.GRASS)
                 ctx.fillStyle="#476c3d";
 
-            }
-
-            if(t===TERRAIN.WATER){
-
+            if(t===TERRAIN.WATER)
                 ctx.fillStyle="#24577a";
 
-            }
-
-            if(t===TERRAIN.SAND){
-
+            if(t===TERRAIN.SAND)
                 ctx.fillStyle="#a99458";
 
-            }
-
-            if(t===TERRAIN.FOREST){
-
+            if(t===TERRAIN.FOREST)
                 ctx.fillStyle="#315638";
 
-            }
-
-            if(t===TERRAIN.ROCK){
-
+            if(t===TERRAIN.ROCK)
                 ctx.fillStyle="#5c5c58";
-
-            }
 
             ctx.fillRect(
                 x-camera.x,
@@ -2660,23 +3823,34 @@ function drawTerrain(){
                 TILE+1
             );
 
-            /* detalles */
+            /* detalles deterministas */
 
-            if(t===TERRAIN.GRASS){
+            if(
+                t===TERRAIN.GRASS
+            ){
 
-                ctx.fillStyle="rgba(30,70,30,.22)";
+                ctx.fillStyle=
+                    "rgba(30,70,30,.20)";
 
-                for(let i=0;i<3;i++){
+                const seed=
+                    Math.abs(
+                        (
+                            tx*928371+
+                            ty*492781
+                        )%100
+                    );
 
-                    const gx=
-                        x+rand(8,56)-camera.x;
-
-                    const gy=
-                        y+rand(8,56)-camera.y;
+                if(seed<55){
 
                     ctx.fillRect(
-                        gx,
-                        gy,
+                        x-camera.x+
+                        12+
+                        seed%25,
+
+                        y-camera.y+
+                        12+
+                        (seed*3)%30,
+
                         3,
                         8
                     );
@@ -2685,7 +3859,9 @@ function drawTerrain(){
 
             }
 
-            if(t===TERRAIN.WATER){
+            if(
+                t===TERRAIN.WATER
+            ){
 
                 ctx.strokeStyle=
                     "rgba(150,220,255,.25)";
@@ -2719,12 +3895,12 @@ function drawTerrain(){
 function drawCity(){
 
     const cx=
-        respawnPoint.x-camera.x;
+        respawnPoint.x-
+        camera.x;
 
     const cy=
-        respawnPoint.y-camera.y;
-
-    /* plaza */
+        respawnPoint.y-
+        camera.y;
 
     ctx.fillStyle="#8a7651";
 
@@ -2739,8 +3915,6 @@ function drawCity(){
     );
 
     ctx.fill();
-
-    /* caminos */
 
     ctx.fillStyle="#a99168";
 
@@ -2758,14 +3932,25 @@ function drawCity(){
         70
     );
 
-    /* casas */
+    drawHouse(
+        cx-210,
+        cy-180
+    );
 
-    drawHouse(cx-210,cy-180);
-    drawHouse(cx+150,cy-180);
-    drawHouse(cx-210,cy+100);
-    drawHouse(cx+150,cy+100);
+    drawHouse(
+        cx+150,
+        cy-180
+    );
 
-    /* fuente */
+    drawHouse(
+        cx-210,
+        cy+100
+    );
+
+    drawHouse(
+        cx+150,
+        cy+100
+    );
 
     ctx.fillStyle="#6d8190";
 
@@ -2795,8 +3980,6 @@ function drawCity(){
 
     ctx.fill();
 
-    /* bandera */
-
     ctx.fillStyle="#493421";
 
     ctx.fillRect(
@@ -2810,9 +3993,21 @@ function drawCity(){
 
     ctx.beginPath();
 
-    ctx.moveTo(cx,cy-115);
-    ctx.lineTo(cx+45,cy-100);
-    ctx.lineTo(cx,cy-85);
+    ctx.moveTo(
+        cx,
+        cy-115
+    );
+
+    ctx.lineTo(
+        cx+45,
+        cy-100
+    );
+
+    ctx.lineTo(
+        cx,
+        cy-85
+    );
+
     ctx.closePath();
 
     ctx.fill();
@@ -2834,9 +4029,20 @@ function drawHouse(x,y){
 
     ctx.beginPath();
 
-    ctx.moveTo(x-70,y-40);
-    ctx.lineTo(x,y-100);
-    ctx.lineTo(x+70,y-40);
+    ctx.moveTo(
+        x-70,
+        y-40
+    );
+
+    ctx.lineTo(
+        x,
+        y-100
+    );
+
+    ctx.lineTo(
+        x+70,
+        y-40
+    );
 
     ctx.closePath();
 
@@ -2870,7 +4076,7 @@ function drawHouse(x,y){
 }
 
 /* =========================================================
-   RECURSOS DIBUJADOS
+   RECURSOS
 ========================================================= */
 
 function drawResources(){
@@ -2879,8 +4085,11 @@ function drawResources(){
 
         if(!r.alive)continue;
 
-        const sx=r.x-camera.x;
-        const sy=r.y-camera.y;
+        const sx=
+            r.x-camera.x;
+
+        const sy=
+            r.y-camera.y;
 
         if(
             sx<-80 ||
@@ -2936,11 +4145,30 @@ function drawResources(){
 
             ctx.beginPath();
 
-            ctx.moveTo(sx-25,sy+20);
-            ctx.lineTo(sx-18,sy-15);
-            ctx.lineTo(sx+4,sy-28);
-            ctx.lineTo(sx+28,sy-8);
-            ctx.lineTo(sx+20,sy+25);
+            ctx.moveTo(
+                sx-25,
+                sy+20
+            );
+
+            ctx.lineTo(
+                sx-18,
+                sy-15
+            );
+
+            ctx.lineTo(
+                sx+4,
+                sy-28
+            );
+
+            ctx.lineTo(
+                sx+28,
+                sy-8
+            );
+
+            ctx.lineTo(
+                sx+20,
+                sy+25
+            );
 
             ctx.closePath();
 
@@ -2986,11 +4214,30 @@ function drawResources(){
 
             ctx.beginPath();
 
-            ctx.moveTo(sx-22,sy+20);
-            ctx.lineTo(sx-18,sy-20);
-            ctx.lineTo(sx+10,sy-27);
-            ctx.lineTo(sx+27,sy+7);
-            ctx.lineTo(sx+10,sy+25);
+            ctx.moveTo(
+                sx-22,
+                sy+20
+            );
+
+            ctx.lineTo(
+                sx-18,
+                sy-20
+            );
+
+            ctx.lineTo(
+                sx+10,
+                sy-27
+            );
+
+            ctx.lineTo(
+                sx+27,
+                sy+7
+            );
+
+            ctx.lineTo(
+                sx+10,
+                sy+25
+            );
 
             ctx.closePath();
 
@@ -3012,15 +4259,18 @@ function drawResources(){
 }
 
 /* =========================================================
-   NPC DIBUJO
+   NPC
 ========================================================= */
 
 function drawNPCs(){
 
     for(const npc of npcs){
 
-        const sx=npc.x-camera.x;
-        const sy=npc.y-camera.y;
+        const sx=
+            npc.x-camera.x;
+
+        const sy=
+            npc.y-camera.y;
 
         ctx.fillStyle="#1d2330";
 
@@ -3061,7 +4311,7 @@ function drawNPCs(){
 }
 
 /* =========================================================
-   ENEMIGO DIBUJO
+   ENEMIGOS
 ========================================================= */
 
 function drawEnemies(){
@@ -3070,8 +4320,11 @@ function drawEnemies(){
 
         if(e.hp<=0)continue;
 
-        const sx=e.x-camera.x;
-        const sy=e.y-camera.y;
+        const sx=
+            e.x-camera.x;
+
+        const sy=
+            e.y-camera.y;
 
         if(
             sx<-80 ||
@@ -3094,6 +4347,15 @@ function drawEnemies(){
         if(e.type==="orc")
             color="#657f3f";
 
+        if(e.type==="skeleton")
+            color="#d0c9b4";
+
+        if(e.type==="spider")
+            color="#39252d";
+
+        if(e.type==="eliteOrc")
+            color="#9b2e32";
+
         ctx.fillStyle=
             e.hitFlash>0
             ?"white"
@@ -3111,7 +4373,25 @@ function drawEnemies(){
 
         ctx.fill();
 
-        /* ojos */
+        if(e.elite){
+
+            ctx.strokeStyle="#ffd447";
+
+            ctx.lineWidth=3;
+
+            ctx.beginPath();
+
+            ctx.arc(
+                sx,
+                sy,
+                e.radius+5,
+                0,
+                Math.PI*2
+            );
+
+            ctx.stroke();
+
+        }
 
         ctx.fillStyle="#111";
 
@@ -3146,12 +4426,16 @@ function drawEnemies(){
             6
         );
 
-        ctx.fillStyle="#e22";
+        ctx.fillStyle=
+            e.elite
+            ?"gold"
+            :"#e22";
 
         ctx.fillRect(
             sx-28,
             sy-e.radius-12,
-            56*Math.max(
+            56*
+            Math.max(
                 0,
                 e.hp/e.maxHp
             ),
@@ -3187,9 +4471,8 @@ function drawPlayer(){
 
     }
 
-    /* sombra */
-
-    ctx.fillStyle="rgba(0,0,0,.35)";
+    ctx.fillStyle=
+        "rgba(0,0,0,.35)";
 
     ctx.beginPath();
 
@@ -3205,8 +4488,6 @@ function drawPlayer(){
 
     ctx.fill();
 
-    /* capa */
-
     ctx.fillStyle="#6b1e25";
 
     ctx.beginPath();
@@ -3220,8 +4501,6 @@ function drawPlayer(){
 
     ctx.fill();
 
-    /* cuerpo */
-
     ctx.fillStyle="#596673";
 
     ctx.fillRect(
@@ -3231,8 +4510,6 @@ function drawPlayer(){
         38
     );
 
-    /* armadura */
-
     ctx.fillStyle="#9ba7af";
 
     ctx.fillRect(
@@ -3241,8 +4518,6 @@ function drawPlayer(){
         26,
         28
     );
-
-    /* cabeza */
 
     ctx.fillStyle="#d8aa82";
 
@@ -3257,8 +4532,6 @@ function drawPlayer(){
     );
 
     ctx.fill();
-
-    /* casco */
 
     ctx.fillStyle="#596875";
 
@@ -3281,8 +4554,6 @@ function drawPlayer(){
         9
     );
 
-    /* ojos */
-
     ctx.fillStyle="#20252b";
 
     ctx.fillRect(
@@ -3298,8 +4569,6 @@ function drawPlayer(){
         5,
         3
     );
-
-    /* espada */
 
     const swordX=
         player.directionX>=0
@@ -3344,8 +4613,6 @@ function drawPlayer(){
 
     ctx.stroke();
 
-    /* animación ataque */
-
     if(player.attackAnimation>0){
 
         ctx.strokeStyle="#fff";
@@ -3378,8 +4645,11 @@ function drawEffects(){
 
     for(const e of effects){
 
-        const sx=e.x-camera.x;
-        const sy=e.y-camera.y;
+        const sx=
+            e.x-camera.x;
+
+        const sy=
+            e.y-camera.y;
 
         const alpha=
             e.life/e.maxLife;
@@ -3394,7 +4664,8 @@ function drawEffects(){
         ctx.arc(
             sx,
             sy,
-            e.radius*(1-alpha*.15),
+            e.radius*
+            (1-alpha*.15),
             0,
             Math.PI*2
         );
@@ -3406,20 +4677,18 @@ function drawEffects(){
 }
 
 /* =========================================================
-   FLOATING TEXT DIBUJO
+   FLOATING TEXT
 ========================================================= */
 
-function drawFloatingTexts(dt){
+function drawFloatingTexts(){
 
-    for(let i=floatingTexts.length-1;i>=0;i--){
+    for(const f of floatingTexts){
 
-        const f=floatingTexts[i];
+        const sx=
+            f.x-camera.x;
 
-        f.life-=dt;
-        f.y-=25*dt;
-
-        const sx=f.x-camera.x;
-        const sy=f.y-camera.y;
+        const sy=
+            f.y-camera.y;
 
         ctx.globalAlpha=
             Math.max(
@@ -3429,9 +4698,11 @@ function drawFloatingTexts(dt){
 
         ctx.fillStyle="#fff";
 
-        ctx.font="bold 14px Arial";
+        ctx.font=
+            "bold 14px Arial";
 
-        ctx.textAlign="center";
+        ctx.textAlign=
+            "center";
 
         ctx.fillText(
             f.text,
@@ -3440,12 +4711,6 @@ function drawFloatingTexts(dt){
         );
 
         ctx.globalAlpha=1;
-
-        if(f.life<=0){
-
-            floatingTexts.splice(i,1);
-
-        }
 
     }
 
@@ -3456,6 +4721,8 @@ function drawFloatingTexts(dt){
 ========================================================= */
 
 function drawMinimap(){
+
+    if(!miniCtx)return;
 
     const size=180;
 
@@ -3478,15 +4745,26 @@ function drawMinimap(){
     const scale=
         size/WORLD_WIDTH;
 
-    for(let y=0;y<size;y+=5){
+    for(
+        let y=0;
+        y<size;
+        y+=5
+    ){
 
-        for(let x=0;x<size;x+=5){
+        for(
+            let x=0;
+            x<size;
+            x+=5
+        ){
 
             const wx=x/scale;
             const wy=y/scale;
 
             const t=
-                terrainAt(wx,wy);
+                terrainAt(
+                    wx,
+                    wy
+                );
 
             if(t===TERRAIN.WATER)
                 miniCtx.fillStyle="#24577a";
@@ -3556,17 +4834,24 @@ function saveGame(){
 
     const save={
 
+        version:300,
+
         player:{
 
             x:player.x,
             y:player.y,
+
             level:player.level,
+
             xp:player.xp,
             xpNeeded:player.xpNeeded,
+
             hp:player.hp,
             maxHp:player.maxHp,
+
             mana:player.mana,
             maxMana:player.maxMana,
+
             damage:player.damage,
             defense:player.defense
 
@@ -3576,14 +4861,28 @@ function saveGame(){
 
         equipment,
 
-        quests
+        quests,
+
+        gameStats
 
     };
 
-    localStorage.setItem(
-        "reinosDeCenizaRPG",
-        JSON.stringify(save)
-    );
+    try{
+
+        localStorage.setItem(
+            "reinosDeCenizaRPG",
+            JSON.stringify(save)
+        );
+
+    }
+    catch(error){
+
+        console.error(
+            "Error guardando partida",
+            error
+        );
+
+    }
 
 }
 
@@ -3602,7 +4901,8 @@ function loadGame(){
 
     try{
 
-        const save=JSON.parse(raw);
+        const save=
+            JSON.parse(raw);
 
         if(save.player){
 
@@ -3624,9 +4924,14 @@ function loadGame(){
 
         if(save.equipment){
 
-            for(const slot in save.equipment){
+            for(
+                const slot
+                in save.equipment
+            ){
 
-                if(equipment[slot]){
+                if(
+                    equipment[slot]
+                ){
 
                     Object.assign(
                         equipment[slot],
@@ -3639,13 +4944,22 @@ function loadGame(){
 
         }
 
-        if(Array.isArray(save.quests)){
+        if(
+            Array.isArray(
+                save.quests
+            )
+        ){
 
-            for(const oldQuest of save.quests){
+            for(
+                const oldQuest
+                of save.quests
+            ){
 
                 const q=
                     quests.find(
-                        x=>x.id===oldQuest.id
+                        x=>
+                            x.id===
+                            oldQuest.id
                     );
 
                 if(q){
@@ -3661,13 +4975,95 @@ function loadGame(){
 
         }
 
-        if(player.hp<=0){
+        if(save.gameStats){
 
-            player.hp=player.maxHp;
-            player.mana=player.maxMana;
+            Object.assign(
+                gameStats,
+                save.gameStats
+            );
 
-            player.x=respawnPoint.x;
-            player.y=respawnPoint.y;
+        }
+
+        /*
+           COMPATIBILIDAD:
+           partidas anteriores usaban fish
+           como cebo.
+        */
+
+        if(
+            typeof inventory.bait!=="number"
+        ){
+
+            inventory.bait=
+                0;
+
+        }
+
+        if(
+            typeof equipment.weapon.upgrade!=="number"
+        ){
+
+            equipment.weapon.upgrade=0;
+
+        }
+
+        if(
+            typeof equipment.armor.upgrade!=="number"
+        ){
+
+            equipment.armor.upgrade=0;
+
+        }
+
+        /*
+           Evitar partidas corruptas
+        */
+
+        if(
+            !Number.isFinite(
+                player.level
+            )
+        ){
+
+            player.level=1;
+
+        }
+
+        if(
+            !Number.isFinite(
+                player.xp
+            )
+        ){
+
+            player.xp=0;
+
+        }
+
+        if(
+            !Number.isFinite(
+                player.xpNeeded
+            )
+        ){
+
+            player.xpNeeded=100;
+
+        }
+
+        if(
+            player.hp<=0
+        ){
+
+            player.hp=
+                player.maxHp;
+
+            player.mana=
+                player.maxMana;
+
+            player.x=
+                respawnPoint.x;
+
+            player.y=
+                respawnPoint.y;
 
             player.dead=false;
 
@@ -3696,16 +5092,24 @@ function update(dt){
         player.respawnTimer-=dt;
 
         const timer=
-            document.getElementById("deathTimer");
+            document.getElementById(
+                "deathTimer"
+            );
 
-        timer.textContent=
-            "Regresando en "+
-            Math.ceil(
-                player.respawnTimer
-            )+
-            "...";
+        if(timer){
 
-        if(player.respawnTimer<=0){
+            timer.textContent=
+                "Regresando en "+
+                Math.ceil(
+                    player.respawnTimer
+                )+
+                "...";
+
+        }
+
+        if(
+            player.respawnTimer<=0
+        ){
 
             respawn();
 
@@ -3739,14 +5143,24 @@ function update(dt){
             rageTimer-dt
         );
 
-    for(const skill of skills){
+    for(
+        const skill of skills
+    ){
 
-        if(skillCooldowns[skill.id]){
+        if(
+            skillCooldowns[
+                skill.id
+            ]
+        ){
 
-            skillCooldowns[skill.id]=
+            skillCooldowns[
+                skill.id
+            ]=
                 Math.max(
                     0,
-                    skillCooldowns[skill.id]-dt
+                    skillCooldowns[
+                        skill.id
+                    ]-dt
                 );
 
         }
@@ -3757,18 +5171,24 @@ function update(dt){
 
     updateEffects(dt);
 
-    drawFloatingTexts(dt);
+    updateFloatingTexts(dt);
 
-    for(const r of resources){
+    for(
+        const r of resources
+    ){
 
         if(!r.alive){
 
             r.respawn-=dt;
 
-            if(r.respawn<=0){
+            if(
+                r.respawn<=0
+            ){
 
                 r.alive=true;
-                r.hp=r.maxHp;
+
+                r.hp=
+                    r.maxHp;
 
             }
 
@@ -3821,7 +5241,8 @@ function draw(){
    LOOP
 ========================================================= */
 
-let lastTime=performance.now();
+let lastTime=
+    performance.now();
 
 function gameLoop(now){
 
@@ -3843,6 +5264,10 @@ function gameLoop(now){
 
 }
 
+/* =========================================================
+   INICIO
+========================================================= */
+
 loadGame();
 
 maintainEnemies();
@@ -3860,15 +5285,22 @@ requestAnimationFrame(
     gameLoop
 );
 
+setTimeout(
+    ()=>{
+
+        showMessage(
+            "🏰 Bienvenido a Reinos de Ceniza"
+        );
+
+    },
+    800
+);
+
 /* =========================================================
-   MENSAJE INICIAL
+   ATAJOS DE PRUEBA
+=========================================================
+
+   P = usar poción
+   F = pescar cerca del agua
+
 ========================================================= */
-
-setTimeout(()=>{
-
-    showMessage(
-        "🏰 Bienvenido a Reinos de Ceniza"
-    );
-
-},800);
-
