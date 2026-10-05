@@ -5918,3 +5918,1504 @@ requestAnimationFrame(
 /* =========================================================
    FIN
    ========================================================= */
+/* =========================================================
+   ⚔️ REINOS DE CENIZA
+   ACTUALIZACIÓN 1.1
+   CLASES + ARMAS + HERRAMIENTAS EQUIPABLES
+   ========================================================= */
+
+(function () {
+
+    if (window.__RC_UPDATE_11__) return;
+    window.__RC_UPDATE_11__ = true;
+
+    console.log("⚔️ Reinos de Ceniza - Actualización 1.1");
+
+    /* =====================================================
+       🏹 ARMAS PRINCIPALES POR CLASE
+       ===================================================== */
+
+    itemDefinitions.apprenticeBow = {
+        id: "apprenticeBow",
+        name: "Arco de Aprendiz",
+        type: "weapon",
+        slot: "weapon",
+        level: 1,
+        rarity: "common",
+        damage: 9,
+        defense: 0,
+        icon: "🏹",
+        ranged: true,
+        projectile: "arrow",
+        range: 430,
+        projectileSpeed: 720,
+        description:
+            "Un arco sencillo utilizado por jóvenes cazadores."
+    };
+
+    itemDefinitions.apprenticeStaff = {
+        id: "apprenticeStaff",
+        name: "Bastón de Aprendiz",
+        type: "weapon",
+        slot: "weapon",
+        level: 1,
+        rarity: "common",
+        damage: 11,
+        defense: 0,
+        icon: "🔮",
+        ranged: true,
+        projectile: "fireball",
+        range: 380,
+        projectileSpeed: 520,
+        description:
+            "Un bastón básico capaz de canalizar energía mágica."
+    };
+
+    itemDefinitions.apprenticeDagger = {
+        id: "apprenticeDagger",
+        name: "Daga de Aprendiz",
+        type: "weapon",
+        slot: "weapon",
+        level: 1,
+        rarity: "common",
+        damage: 12,
+        defense: 0,
+        icon: "🗡️",
+        ranged: false,
+        description:
+            "Una daga ligera perfecta para ataques rápidos."
+    };
+
+    /* =====================================================
+       🛠️ HERRAMIENTAS COMO OBJETOS REALES
+       ===================================================== */
+
+    itemDefinitions.axeTool = {
+        id: "axeTool",
+        name: "Hacha",
+        type: "tool",
+        slot: "tool",
+        level: 1,
+        rarity: "common",
+        damage: 0,
+        defense: 0,
+        icon: "🪓",
+        toolType: "axe",
+        description:
+            "Herramienta necesaria para talar árboles."
+    };
+
+    itemDefinitions.pickaxeTool = {
+        id: "pickaxeTool",
+        name: "Pico",
+        type: "tool",
+        slot: "tool",
+        level: 1,
+        rarity: "common",
+        damage: 0,
+        defense: 0,
+        icon: "⛏️",
+        toolType: "pickaxe",
+        description:
+            "Herramienta necesaria para extraer piedra, cobre y hierro."
+    };
+
+    itemDefinitions.fishingRodTool = {
+        id: "fishingRodTool",
+        name: "Caña de Pescar",
+        type: "tool",
+        slot: "tool",
+        level: 1,
+        rarity: "common",
+        damage: 0,
+        defense: 0,
+        icon: "🎣",
+        toolType: "fishingRod",
+        description:
+            "Herramienta necesaria para pescar en el agua."
+    };
+
+    /* =====================================================
+       ⚔️ CAMBIAR ARMAS DE LAS CLASES
+       ===================================================== */
+
+    classes.warrior.weapon = "ironSword";
+
+    classes.hunter.weapon = "apprenticeBow";
+    classes.hunter.attackRange = 430;
+
+    classes.mage.weapon = "apprenticeStaff";
+    classes.mage.attackRange = 380;
+
+    classes.assassin.weapon = "apprenticeDagger";
+    classes.assassin.attackRange = 115;
+
+    classes.explorer.weapon = "ironSword";
+    classes.explorer.attackRange = 115;
+
+    /* =====================================================
+       🔧 HERRAMIENTA ACTIVA
+       ===================================================== */
+
+    if (!equipment) {
+        equipment = {};
+    }
+
+    if (!Object.prototype.hasOwnProperty.call(equipment, "tool")) {
+        equipment.tool = null;
+    }
+
+    function syncToolState() {
+
+        tools.axe.equipped = false;
+        tools.pickaxe.equipped = false;
+        tools.fishingRod.equipped = false;
+
+        const activeTool = equipment.tool;
+
+        if (!activeTool) return;
+
+        if (activeTool.toolType === "axe") {
+            tools.axe.equipped = true;
+        }
+
+        if (activeTool.toolType === "pickaxe") {
+            tools.pickaxe.equipped = true;
+        }
+
+        if (activeTool.toolType === "fishingRod") {
+            tools.fishingRod.equipped = true;
+        }
+    }
+
+    /* =====================================================
+       📊 ESTADÍSTICAS
+       ===================================================== */
+
+    const oldRecalculatePlayerStats =
+        recalculatePlayerStats;
+
+    recalculatePlayerStats = function () {
+
+        oldRecalculatePlayerStats();
+
+        const cls =
+            classes[player.classId] ||
+            classes.warrior;
+
+        if (cls.attackRange) {
+            player.attackRange =
+                cls.attackRange;
+        }
+
+        const weapon =
+            equipment.weapon;
+
+        if (weapon && weapon.range) {
+            player.attackRange =
+                weapon.range;
+        }
+
+        syncToolState();
+    };
+
+    /* =====================================================
+       🧰 CREAR OBJETO DE HERRAMIENTA
+       ===================================================== */
+
+    function makeTool(itemId) {
+
+        const def =
+            itemDefinitions[itemId];
+
+        if (!def) return null;
+
+        return {
+            uid:
+                "tool_" +
+                itemId +
+                "_" +
+                Date.now() +
+                "_" +
+                Math.random()
+                    .toString(36)
+                    .slice(2),
+
+            itemId,
+
+            ...def
+        };
+    }
+
+    /* =====================================================
+       🎒 COMPROBAR SI YA EXISTE UNA HERRAMIENTA
+       ===================================================== */
+
+    function hasTool(toolType) {
+
+        if (
+            equipment.tool &&
+            equipment.tool.toolType === toolType
+        ) {
+            return true;
+        }
+
+        return itemInventory.some(
+            item =>
+                item.type === "tool" &&
+                item.toolType === toolType
+        );
+    }
+
+    /* =====================================================
+       🧰 ASEGURAR HERRAMIENTAS
+       ===================================================== */
+
+    function ensureStartingTools() {
+
+        const starterTools = [
+            ["axe", "axeTool"],
+            ["pickaxe", "pickaxeTool"],
+            ["fishingRod", "fishingRodTool"]
+        ];
+
+        starterTools.forEach(
+            ([toolType, itemId]) => {
+
+                if (hasTool(toolType)) {
+                    return;
+                }
+
+                if (!inventoryHasSpace(1)) {
+                    return;
+                }
+
+                const item =
+                    makeTool(itemId);
+
+                if (item) {
+                    itemInventory.push(item);
+                }
+            }
+        );
+
+        syncToolState();
+    }
+
+    /* =====================================================
+       ⚔️ EQUIPAR
+       ===================================================== */
+
+    const oldEquipItem =
+        equipItem;
+
+    equipItem = function (uid) {
+
+        const item =
+            itemInventory.find(
+                x => x.uid === uid
+            );
+
+        if (!item) return;
+
+        /* ---------------------------------------------
+           HERRAMIENTA
+           --------------------------------------------- */
+
+        if (item.type === "tool") {
+
+            if (
+                player.level <
+                item.level
+            ) {
+
+                showMessage(
+                    "🔒 Necesitas nivel " +
+                    item.level +
+                    "."
+                );
+
+                return;
+            }
+
+            const oldTool =
+                equipment.tool;
+
+            const index =
+                itemInventory.findIndex(
+                    x => x.uid === uid
+                );
+
+            if (index === -1) {
+                return;
+            }
+
+            /*
+             * Quitamos primero la herramienta
+             * seleccionada del inventario.
+             */
+            itemInventory.splice(
+                index,
+                1
+            );
+
+            /*
+             * La herramienta anterior
+             * vuelve al inventario.
+             */
+            if (oldTool) {
+
+                itemInventory.push({
+                    ...oldTool,
+
+                    uid:
+                        "item_" +
+                        Date.now() +
+                        "_" +
+                        Math.random()
+                            .toString(36)
+                            .slice(2)
+                });
+            }
+
+            equipment.tool = {
+                ...item
+            };
+
+            syncToolState();
+
+            recalculatePlayerStats();
+
+            showMessage(
+                "🛠️ Equipaste " +
+                item.name
+            );
+
+            saveGame();
+
+            closeItemDetails();
+            renderInventoryPanel();
+            updateUI();
+
+            return;
+        }
+
+        /*
+         * Armas y armaduras continúan utilizando
+         * el sistema original.
+         */
+
+        oldEquipItem(uid);
+    };
+
+    /* =====================================================
+       🔓 DESEQUIPAR HERRAMIENTA
+       ===================================================== */
+
+    const oldUnequipItem =
+        unequipItem;
+
+    unequipItem = function (slot) {
+
+        if (slot !== "tool") {
+            oldUnequipItem(slot);
+            return;
+        }
+
+        const item =
+            equipment.tool;
+
+        if (!item) return;
+
+        if (!inventoryHasSpace()) {
+
+            showMessage(
+                "🎒 Inventario lleno."
+            );
+
+            return;
+        }
+
+        itemInventory.push({
+            ...item,
+
+            uid:
+                "item_" +
+                Date.now() +
+                "_" +
+                Math.random()
+                    .toString(36)
+                    .slice(2)
+        });
+
+        equipment.tool = null;
+
+        syncToolState();
+
+        recalculatePlayerStats();
+
+        saveGame();
+
+        renderInventoryPanel();
+        updateUI();
+
+        showMessage(
+            "Desequipaste " +
+            item.name
+        );
+    };
+
+    /* =====================================================
+       🎒 INVENTARIO
+       ===================================================== */
+
+    const oldRenderInventoryPanel =
+        renderInventoryPanel;
+
+    renderInventoryPanel = function () {
+
+        oldRenderInventoryPanel();
+
+        const panel =
+            document.getElementById(
+                "inventoryPanel"
+            );
+
+        if (!panel) return;
+
+        const oldBadge =
+            document.getElementById(
+                "activeToolBadge"
+            );
+
+        if (oldBadge) {
+            oldBadge.remove();
+        }
+
+        const badge =
+            document.createElement(
+                "div"
+            );
+
+        badge.id =
+            "activeToolBadge";
+
+        const active =
+            equipment.tool;
+
+        badge.style.cssText = `
+            margin:8px 0;
+            padding:10px;
+            border-radius:10px;
+            background:#171d25;
+            border:1px solid #80652e;
+            text-align:center;
+            color:white;
+            font-size:14px;
+        `;
+
+        badge.innerHTML = active
+            ? "🛠️ Herramienta equipada: <b>" +
+              active.icon +
+              " " +
+              active.name +
+              "</b>"
+            : "🛠️ Herramienta equipada: <b>Ninguna</b>";
+
+        const title =
+            panel.querySelector("h2");
+
+        if (title) {
+            title.insertAdjacentElement(
+                "afterend",
+                badge
+            );
+        } else {
+            panel.prepend(badge);
+        }
+    };
+
+    /* =====================================================
+       🌲 RECOLECCIÓN
+       ===================================================== */
+
+    function getRequiredToolForResource(type) {
+
+        if (type === "tree") {
+            return "axe";
+        }
+
+        if (type === "rock") {
+            return "pickaxe";
+        }
+
+        if (type === "copper") {
+            return "pickaxe";
+        }
+
+        if (type === "iron") {
+            return "pickaxe";
+        }
+
+        return null;
+    }
+
+    function getActiveToolType() {
+
+        if (
+            !equipment.tool
+        ) {
+            return null;
+        }
+
+        return equipment.tool.toolType ||
+            null;
+    }
+
+    function playerHasRequiredTool(type) {
+
+        const required =
+            getRequiredToolForResource(
+                type
+            );
+
+        if (!required) {
+            return true;
+        }
+
+        return (
+            getActiveToolType() ===
+            required
+        );
+    }
+
+    /* =====================================================
+       🎣 PESCA
+       ===================================================== */
+
+    function isNearWater() {
+
+        const checks = [
+            [0, 0],
+            [45, 0],
+            [-45, 0],
+            [0, 45],
+            [0, -45],
+            [80, 0],
+            [-80, 0],
+            [0, 80],
+            [0, -80]
+        ];
+
+        return checks.some(
+            ([ox, oy]) =>
+                terrainAt(
+                    player.x + ox,
+                    player.y + oy
+                ) === TERRAIN.WATER
+        );
+    }
+
+    function tryFishing() {
+
+        if (
+            getActiveToolType() !==
+            "fishingRod"
+        ) {
+            return false;
+        }
+
+        if (!isNearWater()) {
+            return false;
+        }
+
+        inventory.fish++;
+
+        /*
+         * Algunas veces obtenemos cebo.
+         */
+        if (
+            Math.random() < 0.25
+        ) {
+            inventory.bait++;
+        }
+
+        updateQuest(
+            "gather",
+            "fish"
+        );
+
+        showMessage(
+            "🎣 ¡Has pescado un pez!"
+        );
+
+        saveGame();
+
+        return true;
+    }
+
+    /* =====================================================
+       ⛏️ RECOLECTAR
+       ===================================================== */
+
+    collectNearestResource =
+        function () {
+
+            /*
+             * Primero intentamos pescar.
+             */
+            if (tryFishing()) {
+                return;
+            }
+
+            let nearest = null;
+
+            let best = 80;
+
+            resources.forEach(
+                resource => {
+
+                    if (
+                        resource.collected
+                    ) {
+                        return;
+                    }
+
+                    const d =
+                        distance(
+                            player,
+                            resource
+                        );
+
+                    if (
+                        d < best
+                    ) {
+
+                        best = d;
+                        nearest =
+                            resource;
+                    }
+                }
+            );
+
+            if (!nearest) {
+
+                showMessage(
+                    "No hay recursos cerca."
+                );
+
+                return;
+            }
+
+            const required =
+                getRequiredToolForResource(
+                    nearest.type
+                );
+
+            if (
+                required &&
+                getActiveToolType() !==
+                required
+            ) {
+
+                const names = {
+                    axe:
+                        "🪓 un hacha",
+                    pickaxe:
+                        "⛏️ un pico",
+                    fishingRod:
+                        "🎣 una caña de pescar"
+                };
+
+                showMessage(
+                    "❌ Necesitas equipar " +
+                    names[required] +
+                    "."
+                );
+
+                return;
+            }
+
+            nearest.collected =
+                true;
+
+            nearest.respawn =
+                20;
+
+            switch (
+                nearest.type
+            ) {
+
+                case "tree":
+
+                    inventory.wood++;
+                    showMessage(
+                        "🪓 Madera obtenida."
+                    );
+
+                    break;
+
+                case "rock":
+
+                    inventory.stone++;
+                    showMessage(
+                        "⛏️ Piedra obtenida."
+                    );
+
+                    break;
+
+                case "copper":
+
+                    inventory.copper++;
+                    showMessage(
+                        "⛏️ Cobre obtenido."
+                    );
+
+                    break;
+
+                case "iron":
+
+                    inventory.iron++;
+                    showMessage(
+                        "⛏️ Hierro obtenido."
+                    );
+
+                    break;
+            }
+
+            updateQuest(
+                "gather",
+                nearest.type
+            );
+
+            saveGame();
+        };
+
+    /* =====================================================
+       🏹 PROYECTILES
+       ===================================================== */
+
+    let rangedProjectiles = [];
+
+    function createProjectile(
+        target,
+        damage,
+        kind
+    ) {
+
+        if (!target) return;
+
+        rangedProjectiles.push({
+
+            x: player.x,
+
+            y: player.y,
+
+            target,
+
+            damage,
+
+            kind,
+
+            speed:
+                kind === "arrow"
+                    ? 720
+                    : 520,
+
+            life: 3
+        });
+    }
+
+    function updateProjectiles(dt) {
+
+        rangedProjectiles =
+            rangedProjectiles.filter(
+                projectile => {
+
+                    if (
+                        !projectile.target ||
+                        projectile.target.dead
+                    ) {
+                        return false;
+                    }
+
+                    const target =
+                        projectile.target;
+
+                    const dx =
+                        target.x -
+                        projectile.x;
+
+                    const dy =
+                        target.y -
+                        projectile.y;
+
+                    const dist =
+                        Math.hypot(
+                            dx,
+                            dy
+                        );
+
+                    if (
+                        dist < 18
+                    ) {
+
+                        damageEnemy(
+                            target,
+                            projectile.damage
+                        );
+
+                        return false;
+                    }
+
+                    const step =
+                        Math.min(
+                            dist,
+                            projectile.speed *
+                            dt
+                        );
+
+                    projectile.x +=
+                        dx /
+                        dist *
+                        step;
+
+                    projectile.y +=
+                        dy /
+                        dist *
+                        step;
+
+                    projectile.life -=
+                        dt;
+
+                    return (
+                        projectile.life >
+                        0
+                    );
+                }
+            );
+    }
+
+    function drawProjectiles() {
+
+        rangedProjectiles.forEach(
+            projectile => {
+
+                const sx =
+                    projectile.x -
+                    camera.x;
+
+                const sy =
+                    projectile.y -
+                    camera.y;
+
+                ctx.save();
+
+                ctx.textAlign =
+                    "center";
+
+                ctx.textBaseline =
+                    "middle";
+
+                ctx.font =
+                    "22px Arial";
+
+                if (
+                    projectile.kind ===
+                    "arrow"
+                ) {
+
+                    ctx.fillText(
+                        "➶",
+                        sx,
+                        sy
+                    );
+
+                } else {
+
+                    ctx.fillText(
+                        "🔥",
+                        sx,
+                        sy
+                    );
+                }
+
+                ctx.restore();
+            }
+        );
+    }
+
+    /* =====================================================
+       ⚔️ ATAQUE NUEVO
+       ===================================================== */
+
+    attack =
+        function () {
+
+            if (player.dead) {
+                return;
+            }
+
+            if (
+                player.attackCooldown >
+                0
+            ) {
+                return;
+            }
+
+            player.attackCooldown =
+                player.attackDelay;
+
+            player.attackAnimation =
+                0.18;
+
+            const weapon =
+                equipment.weapon;
+
+            const isRanged =
+                weapon &&
+                weapon.ranged;
+
+            const range =
+                isRanged
+                    ? (
+                        weapon.range ||
+                        player.attackRange
+                    )
+                    : player.attackRange;
+
+            const target =
+                getNearestEnemy(
+                    range
+                );
+
+            if (!target) {
+
+                showMessage(
+                    isRanged
+                        ? "🏹 No hay enemigo a distancia."
+                        : "⚔️ No hay enemigo en alcance."
+                );
+
+                return;
+            }
+
+            let damage =
+                player.damage;
+
+            if (
+                Math.random() <
+                player.criticalChance
+            ) {
+
+                damage =
+                    Math.round(
+                        damage *
+                        player.criticalDamage
+                    );
+
+                showMessage(
+                    "💥 ¡GOLPE CRÍTICO!"
+                );
+            }
+
+            if (
+                player.rageTimer >
+                0
+            ) {
+
+                damage =
+                    Math.round(
+                        damage *
+                        1.5
+                    );
+            }
+
+            if (isRanged) {
+
+                createProjectile(
+                    target,
+                    damage,
+                    weapon.projectile ||
+                    "arrow"
+                );
+
+                if (
+                    weapon.projectile ===
+                    "fireball"
+                ) {
+
+                    showMessage(
+                        "🔥 ¡Bola de fuego!"
+                    );
+
+                } else {
+
+                    showMessage(
+                        "🏹 ¡Disparo!"
+                    );
+                }
+
+            } else {
+
+                damageEnemy(
+                    target,
+                    damage
+                );
+            }
+        };
+
+    /* =====================================================
+       🎨 DIBUJAR PROYECTILES
+       ===================================================== */
+
+    const oldDraw =
+        draw;
+
+    draw = function () {
+
+        oldDraw();
+
+        drawProjectiles();
+    };
+
+    /* =====================================================
+       🔄 ACTUALIZAR PROYECTILES
+       ===================================================== */
+
+    const oldUpdate =
+        update;
+
+    update = function (dt) {
+
+        oldUpdate(dt);
+
+        updateProjectiles(dt);
+    };
+
+    /* =====================================================
+       🛠️ QUITAR BOTÓN DE PICO
+       ===================================================== */
+
+    const oldCreateMobileButtons =
+        createMobileButtons;
+
+    createMobileButtons =
+        function () {
+
+            oldCreateMobileButtons();
+
+            const gatherButton =
+                document.getElementById(
+                    "gatherButton"
+                );
+
+            if (gatherButton) {
+                gatherButton.remove();
+            }
+        };
+
+    /* =====================================================
+       🎒 INICIO DE PERSONAJE
+       ===================================================== */
+
+    const oldCreateStartingInventory =
+        createStartingInventory;
+
+    createStartingInventory =
+        function () {
+
+            oldCreateStartingInventory();
+
+            equipment.tool =
+                null;
+
+            /*
+             * Las herramientas empiezan
+             * dentro del inventario.
+             */
+            ensureStartingTools();
+
+            syncToolState();
+
+            recalculatePlayerStats();
+        };
+
+    /* =====================================================
+       👤 ARMAMENTO AUTOMÁTICO POR CLASE
+       ===================================================== */
+
+    function applyClassWeapon() {
+
+        const cls =
+            classes[player.classId] ||
+            classes.warrior;
+
+        const desiredId =
+            cls.weapon ||
+            "ironSword";
+
+        const current =
+            equipment.weapon;
+
+        if (
+            current &&
+            current.itemId ===
+            desiredId
+        ) {
+            return;
+        }
+
+        /*
+         * Buscamos el arma de clase
+         * dentro del inventario.
+         */
+        const inventoryIndex =
+            itemInventory.findIndex(
+                item =>
+                    item.itemId ===
+                    desiredId
+            );
+
+        if (
+            inventoryIndex !==
+            -1
+        ) {
+
+            const newWeapon =
+                itemInventory.splice(
+                    inventoryIndex,
+                    1
+                )[0];
+
+            if (current) {
+
+                if (
+                    inventoryHasSpace(
+                        1
+                    )
+                ) {
+
+                    itemInventory.push({
+                        ...current,
+
+                        uid:
+                            "item_" +
+                            Date.now() +
+                            "_" +
+                            Math.random()
+                                .toString(36)
+                                .slice(2)
+                    });
+
+                } else {
+
+                    showMessage(
+                        "🎒 No hay espacio para guardar tu arma anterior."
+                    );
+
+                    return;
+                }
+            }
+
+            equipment.weapon =
+                newWeapon;
+
+            return;
+        }
+
+        /*
+         * Si es un personaje nuevo
+         * creamos directamente el arma.
+         */
+        const newWeapon =
+            cloneItem(
+                desiredId
+            );
+
+        if (!newWeapon) {
+            return;
+        }
+
+        if (current) {
+
+            if (
+                inventoryHasSpace(
+                    1
+                )
+            ) {
+
+                itemInventory.push({
+                    ...current,
+
+                    uid:
+                        "item_" +
+                        Date.now() +
+                        "_" +
+                        Math.random()
+                            .toString(36)
+                            .slice(2)
+                });
+
+            } else {
+
+                showMessage(
+                    "🎒 No hay espacio para guardar el arma anterior."
+                );
+
+                return;
+            }
+        }
+
+        equipment.weapon =
+            newWeapon;
+    }
+
+    /* =====================================================
+       🔄 INICIAR PARTIDA
+       ===================================================== */
+
+    const oldStartGame =
+        startGame;
+
+    startGame =
+        function () {
+
+            /*
+             * Primero garantizamos
+             * arma correcta y herramientas.
+             */
+            applyClassWeapon();
+
+            if (
+                !equipment.tool
+            ) {
+                ensureStartingTools();
+            }
+
+            syncToolState();
+
+            recalculatePlayerStats();
+
+            oldStartGame();
+
+            /*
+             * Eliminamos cualquier botón
+             * antiguo que haya sido creado.
+             */
+            const gatherButton =
+                document.getElementById(
+                    "gatherButton"
+                );
+
+            if (gatherButton) {
+                gatherButton.remove();
+            }
+        };
+
+    /* =====================================================
+       🧙 CREAR PERSONAJE
+       ===================================================== */
+
+    createNewCharacter =
+        function (
+            name,
+            classId,
+            color
+        ) {
+
+            const characters =
+                getCharacters();
+
+            if (
+                characters.length >=
+                5
+            ) {
+
+                alert(
+                    "Ya tienes 5 personajes."
+                );
+
+                return;
+            }
+
+            const cls =
+                classes[classId] ||
+                classes.warrior;
+
+            const character = {
+
+                id:
+                    "char_" +
+                    Date.now(),
+
+                name,
+
+                classId,
+
+                color,
+
+                created:
+                    Date.now(),
+
+                level: 1,
+
+                xp: 0,
+
+                gold: 150,
+
+                position: {
+                    x: CITY_X,
+                    y: CITY_Y
+                }
+            };
+
+            characters.push(
+                character
+            );
+
+            saveCharacters(
+                characters
+            );
+
+            /*
+             * NUEVO PERSONAJE:
+             * reiniciamos su inventario
+             * y equipo correctamente.
+             */
+            currentCharacterId =
+                character.id;
+
+            player.name =
+                name;
+
+            player.classId =
+                classId;
+
+            player.color =
+                color;
+
+            player.level = 1;
+            player.xp = 0;
+
+            player.x =
+                CITY_X;
+
+            player.y =
+                CITY_Y;
+
+            createStartingInventory();
+
+            recalculatePlayerStats();
+
+            removeCharacterScreens();
+
+            startGame();
+
+            saveGame();
+
+            showMessage(
+                cls.icon +
+                " " +
+                cls.name +
+                " creado. " +
+                itemDefinitions[
+                    cls.weapon
+                ].name +
+                " equipado."
+            );
+        };
+
+    /* =====================================================
+       💾 NORMALIZAR PARTIDAS ANTIGUAS
+       ===================================================== */
+
+    const oldLoadSave =
+        loadSave;
+
+    loadSave =
+        function () {
+
+            const loaded =
+                oldLoadSave();
+
+            if (!loaded) {
+                return false;
+            }
+
+            if (
+                !equipment
+            ) {
+                equipment = {};
+            }
+
+            if (
+                !Object.prototype.hasOwnProperty.call(
+                    equipment,
+                    "tool"
+                )
+            ) {
+
+                equipment.tool =
+                    null;
+            }
+
+            /*
+             * Las partidas antiguas
+             * tenían todas las herramientas
+             * como equipadas.
+             *
+             * Ahora solo se considera
+             * equipada la herramienta
+             * que esté en equipment.tool.
+             */
+            tools.axe.equipped =
+                false;
+
+            tools.pickaxe.equipped =
+                false;
+
+            tools.fishingRod.equipped =
+                false;
+
+            syncToolState();
+
+            /*
+             * Actualizamos el arma según
+             * la clase del personaje.
+             */
+            applyClassWeapon();
+
+            ensureStartingTools();
+
+            recalculatePlayerStats();
+
+            return true;
+        };
+
+    /* =====================================================
+       🎣 BOTÓN DE RECOLECCIÓN ANTIGUO
+       ===================================================== */
+
+    const oldGather =
+        document.getElementById(
+            "gatherButton"
+        );
+
+    if (oldGather) {
+        oldGather.remove();
+    }
+
+    /* =====================================================
+       🔄 INICIALIZAR
+       ===================================================== */
+
+    syncToolState();
+
+    recalculatePlayerStats();
+
+    console.log(
+        "✅ Actualización 1.1 cargada."
+    );
+
+})();
